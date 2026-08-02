@@ -21,10 +21,15 @@ o trabalho possa ser retomado em outra máquina/sessão a qualquer momento.
 
 ## Tarefas
 
-- [ ] 1. Adicionar dependência `python-docx` (pyproject.toml + requirements.txt)
-- [ ] 2. `app/services/script_import.py`: parser de `.docx` -> roteiro completo
-      (string) + lista de cenas `{scene_id, label, planned_start_seconds,
-      summary, image_prompt}`
+- [x] 1. Adicionar dependência `python-docx` (pyproject.toml + requirements.txt)
+      — commit `200072c`
+- [x] 2. `app/services/script_import.py`: parser de `.docx` -> roteiro completo
+      (string) + lista de cenas `{scene_id, order, narration,
+      planned_start_seconds, summary, image_prompt}` — commit `3e66f89`.
+      Validado com o pacote real do usuário (23 cenas, todos os prompts de
+      imagem casados corretamente). `ScriptScene.narration` guarda o texto
+      da cena (não só o resumo da tabela) para servir de âncora ao
+      alinhamento por texto na tarefa 4.
 - [ ] 3. `app/models/schema.py`: novos modelos/campos
       - `ScriptScene` (planned_start_seconds, label, image_prompt, summary)
       - `VideoParams`: campo opcional para lista de cenas importadas e
