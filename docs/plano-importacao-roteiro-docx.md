@@ -57,9 +57,23 @@ o trabalho possa ser retomado em outra máquina/sessão a qualquer momento.
       conseguem alinhar (ex.: SRT mais curto que o esperado) ficam com
       `start_seconds`/`end_seconds = None` para o chamador decidir um
       fallback (tarefa 6).
-- [ ] 5. `app/services/video.py`: novo modo de montagem que respeita
-      timeline explícita por imagem (start/end reais), em vez do
-      preenchimento aleatório/sequencial genérico atual
+- [x] 5. `app/services/video.py` — commit `1a1db28`
+      - `preprocess_video()`: quando `MaterialInfo.start_time`/`end_time`
+        estão preenchidos, a imagem usa essa duração real da cena em vez
+        do `clip_duration` global (zoom também ajustado).
+      - Nova `combine_videos_explicit_timeline()`: concatena os clipes já
+        na ordem/duração corretas (sem escolha aleatória/sequencial, sem
+        corte por `max_clip_duration`, sem loop), só faz resize para a
+        resolução alvo (lógica extraída para `_resize_clip_to_target()`,
+        reaproveitada também por `combine_videos()` — refactor puro, sem
+        mudança de comportamento) e estica o último clipe se sobrar uma
+        pequena diferença entre o fim da última cena alinhada e a duração
+        real do áudio.
+      - Testes novos em `test_video.py` cobrindo: duração da imagem vinda
+        de start/end explícitos, esticamento do último clipe, e retorno
+        antecipado sem clipes. Suíte completa: só a falha pré-existente
+        (`test_gemini_tts_uses_legacy_submaker_fields`, não relacionada)
+        continua falhando.
 - [ ] 6. `app/services/task.py`: novo fluxo que orquestra
       parse docx -> gera áudio -> alinha cenas -> casa imagens por ordem
       -> monta vídeo com timeline explícita -> aplica BGM/legenda como hoje
