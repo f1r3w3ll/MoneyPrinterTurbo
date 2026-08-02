@@ -178,7 +178,39 @@ o trabalho possa ser retomado em outra máquina/sessão a qualquer momento.
       - Validado: app sobe limpo (`streamlit run webui/Main.py`, HTTP 200,
         sem erro nos logs) e suíte completa de testes passa (só a falha
         pré-existente continua falhando).
-- [ ] 10. Atualizar README/documentação do novo fluxo
+- [x] 10. Documentação — commit `0cdf570`
+      - Nova seção "Importing a Script Package (.docx) with Timed Scenes"
+        em `README-en.md` (entre "Background Music" e "Subtitle Fonts"):
+        formato esperado do `.docx`, explicação de como o tempo real é
+        calculado (alinhamento por texto + fallback proporcional), passo a
+        passo via WebUI e via API (com exemplos `curl`), e a limitação de
+        casamento por posição já registrada na tarefa 6/7.
+      - Item novo na lista de Features.
+      - **Decisão de escopo**: não traduzi para `README.md` (chinês) nem
+        `README-ar.md` (árabe) — fica como próximo passo se for pedido;
+        `README-en.md` é o readme "canônico" do `pyproject.toml`.
+
+## Status final
+
+Todas as 10 tarefas concluídas. Pipeline completo, testado e documentado:
+`.docx` -> parser -> alinhamento por texto (com fallback proporcional) ->
+timeline explícita por imagem -> montagem de vídeo -> API (
+`POST /v1/scripts/import` + `POST /v1/videos`) -> WebUI. Suíte de testes:
+169 passed, 6 skipped (testes de integração com TTS real, gated por
+`MPT_RUN_INTEGRATION_TESTS`), 1 falha pré-existente e não relacionada
+(`test_gemini_tts_uses_legacy_submaker_fields`).
+
+Pontos em aberto para uma próxima rodada, se for o caso:
+- Rodar o teste de integração ponta a ponta (`test_task_docx_imported_scenes_end_to_end`)
+  num ambiente com acesso de rede ao edge-tts para confirmar 100% em
+  produção (aqui só validei até a chamada de TTS, que falhou por falta de
+  rede no sandbox).
+- Robustez do casamento posicional imagem/cena quando `preprocess_video`
+  descarta alguma imagem (baixa resolução) — hoje é aceito como limitação
+  conhecida.
+- Tradução da documentação para `README.md`/`README-ar.md` e para os
+  demais idiomas do WebUI (`de`, `es`, `id`, `tr`, `vi`, `zh` ainda caem
+  no fallback em inglês para as strings novas).
 
 ## Notas técnicas
 
