@@ -30,11 +30,18 @@ o trabalho possa ser retomado em outra máquina/sessão a qualquer momento.
       imagem casados corretamente). `ScriptScene.narration` guarda o texto
       da cena (não só o resumo da tabela) para servir de âncora ao
       alinhamento por texto na tarefa 4.
-- [ ] 3. `app/models/schema.py`: novos modelos/campos
-      - `ScriptScene` (planned_start_seconds, label, image_prompt, summary)
-      - `VideoParams`: campo opcional para lista de cenas importadas e
-        flag de alinhamento por cena
-      - `MaterialInfo`: campos opcionais `start_time`/`end_time` reais
+- [x] 3. `app/models/schema.py`: novos modelos/campos — commit `cac09b4`
+      - `ScriptScene` (BaseModel): scene_id, order, narration,
+        planned_start_seconds, start_seconds/end_seconds (preenchidos pelo
+        alinhamento), summary, image_prompt
+      - `VideoParams.video_scenes: Optional[List[ScriptScene]]`
+      - `MaterialInfo.start_time`/`end_time` (Optional[float]) para
+        posicionamento explícito na timeline
+      - Nota: ficou decidido NÃO usar uma flag `scene_timeline_enabled`
+        separada — a tarefa 5/6 vai detectar o modo "timeline explícita"
+        pela simples presença de `start_time`/`end_time` em todos os
+        materiais, mantendo o comportamento atual como default quando
+        ausentes. Ajustar aqui se essa decisão mudar durante a tarefa 5.
 - [ ] 4. `app/services/alignment.py`: dado o `sub_maker`/legendas geradas
       (edge-tts word boundaries ou whisper) + a lista de cenas com texto
       planejado, localizar o instante real de início de cada cena no
