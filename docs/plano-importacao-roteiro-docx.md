@@ -74,9 +74,36 @@ o trabalho possa ser retomado em outra máquina/sessão a qualquer momento.
         antecipado sem clipes. Suíte completa: só a falha pré-existente
         (`test_gemini_tts_uses_legacy_submaker_fields`, não relacionada)
         continua falhando.
-- [ ] 6. `app/services/task.py`: novo fluxo que orquestra
-      parse docx -> gera áudio -> alinha cenas -> casa imagens por ordem
-      -> monta vídeo com timeline explícita -> aplica BGM/legenda como hoje
+- [x] 6. `app/services/task.py` — commit `78be09d`
+      - `alignment.finalize_scene_timeline()` (novo, em `alignment.py`):
+        garante timeline completa/monotônica/sem gaps mesmo quando o
+        alinhamento por texto falha em algumas cenas — usa escala
+        proporcional dos `planned_start_seconds` do docx como base e
+        sobrepõe os tempos reais alinhados onde disponíveis.
+      - `task.align_imported_scenes()`: roda logo após a legenda ser
+        gerada (`start()`, entre os passos 4 e 5), alinha
+        `params.video_scenes` contra o `subtitle_path` recém-gerado,
+        finaliza a timeline e fixa `start_time`/`end_time` em cada
+        `MaterialInfo` de `params.video_materials`, casando por posição
+        (ordem de upload = ordem das cenas).
+      - `generate_final_videos()`: quando `params.video_scenes` está
+        presente, usa `video.combine_videos_explicit_timeline()` em vez
+        de `video.combine_videos()`.
+      - Pipeline completo ponta a ponta: parse docx (tarefa 2, hoje feito
+        fora do `task.py` — ver tarefa 7) -> gera áudio (TTS ou externo,
+        já suportado) -> gera legenda (já suportado) -> alinha cenas
+        (novo) -> preprocessa imagens com duração real por cena (tarefa 5)
+        -> monta vídeo com timeline explícita (tarefa 5) -> BGM/legenda
+        finais como hoje.
+      - Limitação conhecida (não resolvida nesta rodada): se
+        `preprocess_video` descartar alguma imagem (ex.: baixa resolução),
+        a lista de vídeos baixados fica mais curta que `video_scenes` e o
+        casamento posicional pode desalinhar as cenas seguintes. Aceitável
+        por ora; documentar para o usuário validar resolução das imagens
+        antes do upload.
+      - Testes novos em `test_task.py` (`test_align_imported_scenes_*`) e
+        em `test_alignment.py` (`test_finalize_scene_timeline_*`). Suíte
+        completa: só a falha pré-existente continua falhando.
 - [ ] 7. `app/controllers/v1/video.py`: endpoint(s) novos para upload do
       `.docx` e do lote de imagens ordenado, reaproveitando o máximo do
       pipeline `/v1/videos` existente
