@@ -10,7 +10,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.services import task as tm
-from app.models.schema import MaterialInfo, VideoParams
+from app.models.schema import MaterialInfo, ScriptScene, VideoParams
 from app.utils import utils
 
 resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources")
@@ -162,6 +162,86 @@ class TestTaskService(unittest.TestCase):
         self.assertIsNone(result_sub_maker)
         tts.assert_not_called()
         update_task.assert_called_with(task_id, state=tm.const.TASK_STATE_FAILED)
+
+    def _write_srt(self, path, entries):
+        lines = []
+        for idx, (start, end, text) in enumerate(entries, start=1):
+            lines.append(str(idx))
+            lines.append(f"{start} --> {end}")
+            lines.append(text)
+            lines.append("")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+
+    def test_align_imported_scenes_pins_materials_by_upload_order(self):
+        """
+        docx 导入场景后，每张按上传顺序提供的本地图片，应该被固定到
+        它所对应场景在真实音频里的开始/结束时间，而不是走随机/顺序拼接。
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            subtitle_path = os.path.join(temp_dir, "subtitle.srt")
+            self._write_srt(
+                subtitle_path,
+                [
+                    ("00:00:00,000", "00:00:02,000", "First scene narration."),
+                    ("00:00:02,000", "00:00:05,000", "Second scene narration."),
+                ],
+            )
+
+            scenes = [
+                ScriptScene(
+                    scene_id="01",
+                    order=1,
+                    narration="First scene narration.",
+                    planned_start_seconds=0,
+                ),
+                ScriptScene(
+                    scene_id="02",
+                    order=2,
+                    narration="Second scene narration.",
+                    planned_start_seconds=3,
+                ),
+            ]
+            materials = [
+                MaterialInfo(provider="local", url="scene-1.png"),
+                MaterialInfo(provider="local", url="scene-2.png"),
+            ]
+            params = VideoParams(
+                video_subject="test",
+                video_scenes=scenes,
+                video_materials=materials,
+                video_source="local",
+            )
+
+            tm.align_imported_scenes(
+                task_id="align-test",
+                params=params,
+                subtitle_path=subtitle_path,
+                audio_duration=5.0,
+            )
+
+            self.assertEqual(materials[0].start_time, 0.0)
+            self.assertEqual(materials[0].end_time, 2.0)
+            self.assertEqual(materials[1].start_time, 2.0)
+            self.assertEqual(materials[1].end_time, 5.0)
+
+    def test_align_imported_scenes_noop_without_video_scenes(self):
+        materials = [MaterialInfo(provider="local", url="scene-1.png")]
+        params = VideoParams(
+            video_subject="test",
+            video_materials=materials,
+            video_source="local",
+        )
+
+        tm.align_imported_scenes(
+            task_id="align-test-noop",
+            params=params,
+            subtitle_path="",
+            audio_duration=5.0,
+        )
+
+        self.assertIsNone(materials[0].start_time)
+        self.assertIsNone(materials[0].end_time)
 
     @unittest.skipUnless(
         RUN_INTEGRATION_TESTS,

@@ -97,3 +97,61 @@ def align_scenes_to_subtitle(
         )
 
     return scenes
+
+
+def finalize_scene_timeline(
+    scenes: List[ScriptScene], audio_duration: float
+) -> List[ScriptScene]:
+    """Produce a complete, gapless, monotonic start/end timeline for every scene.
+
+    ``align_scenes_to_subtitle`` is best-effort: some scenes may fail to
+    align (e.g. the subtitle provider produced fewer entries than
+    expected). This function guarantees every scene ends up with a usable
+    ``start_seconds``/``end_seconds`` regardless of partial alignment
+    failures, so it must run right before scenes are pinned to uploaded
+    images:
+
+    1. A baseline timeline is built by proportionally scaling each scene's
+       ``planned_start_seconds`` (from the docx) against the real
+       ``audio_duration`` — this is monotonic by construction, since the
+       planned timestamps are already in narration order.
+    2. Real aligned ``start_seconds`` (from ``align_scenes_to_subtitle``)
+       override the baseline wherever available, clamped to never move
+       backwards relative to the previous scene's resolved start.
+    3. Each scene's ``end_seconds`` is set to the next scene's resolved
+       start (or ``audio_duration`` for the last scene), so there are no
+       gaps or overlaps between consecutive images.
+    """
+    if not scenes:
+        return scenes
+
+    last_planned = next(
+        (s.planned_start_seconds for s in reversed(scenes) if s.planned_start_seconds is not None),
+        None,
+    )
+    scale = (audio_duration / last_planned) if last_planned else None
+
+    resolved_starts: List[float] = []
+    previous_start = 0.0
+    for i, scene in enumerate(scenes):
+        if scale is not None and scene.planned_start_seconds is not None:
+            baseline = scene.planned_start_seconds * scale
+        else:
+            # No usable planned timestamps at all: fall back to spreading
+            # scenes evenly across the audio.
+            baseline = audio_duration * i / len(scenes)
+
+        resolved = scene.start_seconds if scene.start_seconds is not None else baseline
+        resolved = max(0.0, min(resolved, audio_duration))
+        resolved = max(resolved, previous_start)
+
+        resolved_starts.append(resolved)
+        previous_start = resolved
+
+    for i, scene in enumerate(scenes):
+        scene.start_seconds = resolved_starts[i]
+        scene.end_seconds = (
+            resolved_starts[i + 1] if i + 1 < len(scenes) else audio_duration
+        )
+
+    return scenes
