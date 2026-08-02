@@ -42,11 +42,21 @@ o trabalho possa ser retomado em outra máquina/sessão a qualquer momento.
         pela simples presença de `start_time`/`end_time` em todos os
         materiais, mantendo o comportamento atual como default quando
         ausentes. Ajustar aqui se essa decisão mudar durante a tarefa 5.
-- [ ] 4. `app/services/alignment.py`: dado o `sub_maker`/legendas geradas
-      (edge-tts word boundaries ou whisper) + a lista de cenas com texto
-      planejado, localizar o instante real de início de cada cena no
-      áudio gerado (reaproveita a lógica de correspondência já usada em
-      `subtitle.correct`)
+- [x] 4. `app/services/alignment.py` — commit `6ebedf2`. Em vez de
+      reimplementar alinhamento de fala, reaproveita o arquivo de legenda
+      que o MPT já gera (`voice.create_subtitle`/`subtitle.create` +
+      `subtitle.correct`), que sempre produz 1 entrada de SRT por
+      sentença, na ordem da narração. `align_scenes_to_subtitle()` divide
+      a narração de cada cena nas mesmas sentenças (mesma normalização —
+      `utils.normalize_script_for_subtitle_matching` +
+      `split_string_by_punctuations`) e caminha cumulativamente pelas
+      entradas do SRT para achar o `start_seconds`/`end_seconds` real de
+      cada cena. Validado contra o roteiro real: soma das sentenças por
+      cena (370) bate exatamente com a contagem do script inteiro (370) —
+      não há perda/duplicação de linhas no meio do caminho. Cenas que não
+      conseguem alinhar (ex.: SRT mais curto que o esperado) ficam com
+      `start_seconds`/`end_seconds = None` para o chamador decidir um
+      fallback (tarefa 6).
 - [ ] 5. `app/services/video.py`: novo modo de montagem que respeita
       timeline explícita por imagem (start/end reais), em vez do
       preenchimento aleatório/sequencial genérico atual
