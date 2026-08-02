@@ -500,6 +500,114 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(result, combined_video_path)
         self.assertEqual(write_mock.call_count, 4)
 
+    def test_preprocess_video_uses_scene_duration_when_start_end_given(self):
+        """
+        docx 导入的场景图片会带上对齐后的真实 start_time/end_time；
+        preprocess_video 生成的 mp4 时长必须使用这个区间的时长，
+        而不是全局 clip_duration。
+        """
+        if not os.path.exists(self.test_img_path):
+            self.fail(f"test image not found: {self.test_img_path}")
+
+        local_videos_dir = utils.storage_dir("local_videos", create=True)
+        safe_img_path = os.path.join(local_videos_dir, "test-preprocess-scene.png")
+        shutil.copy2(self.test_img_path, safe_img_path)
+
+        m = MaterialInfo(
+            provider="local",
+            url=os.path.basename(safe_img_path),
+            start_time=1.0,
+            end_time=3.5,
+        )
+
+        try:
+            materials = vd.preprocess_video([m], clip_duration=4)
+            self.assertEqual(len(materials), 1)
+
+            clip = VideoFileClip(materials[0].url)
+            try:
+                # 场景时长 2.5s，忽略全局 clip_duration=4。
+                self.assertAlmostEqual(clip.duration, 2.5, delta=0.15)
+            finally:
+                clip.close()
+
+            if os.path.exists(materials[0].url):
+                os.remove(materials[0].url)
+        finally:
+            if os.path.exists(safe_img_path):
+                os.remove(safe_img_path)
+
+    def test_combine_videos_explicit_timeline_stretches_last_clip_to_cover_audio(self):
+        """
+        场景对齐后的总时长可能略短于真实音频时长（例如最后一场未能精确对齐）。
+        explicit-timeline 拼接必须拉伸最后一个片段去补齐这段差值，
+        避免成片提前结束、音频还在播放画面已经黑屏。
+        """
+
+        class _FakeAudioClip:
+            duration = 10.0
+
+            def close(self):
+                pass
+
+        class _FakeVideoClip:
+            def __init__(self, duration):
+                self.duration = duration
+                self.size = (1080, 1920)
+                self.w = 1080
+                self.h = 1920
+
+            def with_duration(self, new_duration):
+                return _FakeVideoClip(new_duration)
+
+        video_durations = {
+            "scene-1.mp4": 4.0,
+            "scene-2.mp4": 4.0,
+        }
+
+        def _open_fake_video_clip(video_path):
+            return _FakeVideoClip(video_durations[video_path])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            combined_video_path = os.path.join(temp_dir, "combined.mp4")
+
+            with patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()):
+                with patch.object(
+                    vd, "_open_video_clip_quietly", side_effect=_open_fake_video_clip
+                ):
+                    with patch.object(
+                        vd, "_write_videofile_with_codec_fallback"
+                    ) as write_mock:
+                        with patch.object(
+                            vd, "concat_video_clips_with_ffmpeg"
+                        ) as concat_mock:
+                            with patch.object(vd, "delete_files"):
+                                result = vd.combine_videos_explicit_timeline(
+                                    combined_video_path=combined_video_path,
+                                    video_paths=list(video_durations.keys()),
+                                    audio_file=os.path.join(temp_dir, "audio.mp3"),
+                                    video_aspect=vd.VideoAspect.portrait,
+                                )
+
+        self.assertEqual(result, combined_video_path)
+        self.assertEqual(write_mock.call_count, 2)
+        concat_mock.assert_called_once()
+        # 8.0s (2 clips x 4s) < required duration (10s + margin) 时，
+        # 最后一个片段必须被拉伸覆盖差值。
+        last_written_clip = write_mock.call_args_list[-1].args[0]
+        self.assertGreater(last_written_clip.duration, 4.0)
+
+    def test_combine_videos_explicit_timeline_returns_early_when_no_paths(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            combined_video_path = os.path.join(temp_dir, "combined.mp4")
+            result = vd.combine_videos_explicit_timeline(
+                combined_video_path=combined_video_path,
+                video_paths=[],
+                audio_file=os.path.join(temp_dir, "audio.mp3"),
+            )
+        self.assertEqual(result, combined_video_path)
+        self.assertFalse(os.path.exists(combined_video_path))
+
     def test_prioritize_unique_source_clips_uses_each_source_before_reuse(self):
         """
         随机模式下，一个长素材会被拆成多个片段。调度层应先让每个源素材
