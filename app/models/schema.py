@@ -53,6 +53,29 @@ class MaterialInfo:
     provider: str = "pexels"
     url: str = ""
     duration: int = 0
+    # Explicit placement on the final timeline, in seconds from the start of
+    # the narration audio. Only used by the docx-script import flow, where
+    # each uploaded image is pinned to the real (aligned) time range of the
+    # scene it illustrates, instead of being auto-placed by
+    # video_clip_duration / video_concat_mode.
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
+
+
+class ScriptScene(BaseModel):
+    """One scene parsed from an imported .docx script package."""
+
+    scene_id: str
+    order: int
+    narration: str
+    planned_start_seconds: Optional[float] = None
+    # Real start/end seconds within the generated narration audio, filled in
+    # once the script has been aligned against the actual TTS/whisper
+    # timeline (see app/services/alignment.py). None until alignment runs.
+    start_seconds: Optional[float] = None
+    end_seconds: Optional[float] = None
+    summary: str = ""
+    image_prompt: str = ""
 
 
 class VideoParams(BaseModel):
@@ -87,6 +110,11 @@ class VideoParams(BaseModel):
     
     custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore video_script and disable subtitle
     video_language: Optional[str] = ""  # auto detect
+
+    # Scenes imported from a .docx script package (see app/services/script_import.py).
+    # When present, video_materials (in upload order) are pinned 1:1 to these
+    # scenes' aligned start/end times instead of being auto-placed.
+    video_scenes: Optional[List[ScriptScene]] = None
 
     voice_name: Optional[str] = ""
     voice_volume: Optional[float] = 1.0
