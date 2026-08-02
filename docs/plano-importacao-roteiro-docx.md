@@ -155,8 +155,29 @@ o trabalho possa ser retomado em outra máquina/sessão a qualquer momento.
         skipped, só a falha pré-existente e não relacionada
         (`test_gemini_tts_uses_legacy_submaker_fields`) continua
         falhando.
-- [ ] 9. WebUI (`webui/Main.py`): upload do `.docx`, preview da tabela de
-      cenas, upload ordenado de imagens, indicação do timing calculado
+- [x] 9. WebUI (`webui/Main.py`) — commit `1586a4e`
+      - Novo expander "Import Script Package (.docx)" na seção de
+        roteiro: upload do `.docx`, botão "Parse Script Package" que
+        chama `script_import.parse_docx_script()` diretamente (mesmo
+        processo, sem round-trip HTTP), preenche
+        `st.session_state["video_script"]` e
+        `st.session_state["video_scenes"]`, mostra tabela de preview
+        (cena, início planejado, prompt de imagem) e botão para limpar.
+      - Seção de upload de material local mostra aviso quando há cenas
+        importadas, lembrando de enviar as imagens na mesma ordem da
+        tabela.
+      - Na submissão, `params.video_scenes` é reconstruído a partir do
+        `session_state` e um aviso é mostrado se a quantidade de imagens
+        enviadas não bater com a quantidade de cenas (mesma lógica de
+        "casamento por posição" da tarefa 6).
+      - Chaves de tradução novas adicionadas em `en.json`, `pt.json` e
+        `ru.json` (o teste `test_webui_i18n.py` exige que toda chave
+        usada em `tr()` exista em inglês e em russo). Outros idiomas
+        (`de`, `es`, `id`, `tr`, `vi`, `zh`) ficam com fallback em inglês
+        por ora — não bloqueiam nada, mas podem ser traduzidos depois.
+      - Validado: app sobe limpo (`streamlit run webui/Main.py`, HTTP 200,
+        sem erro nos logs) e suíte completa de testes passa (só a falha
+        pré-existente continua falhando).
 - [ ] 10. Atualizar README/documentação do novo fluxo
 
 ## Notas técnicas
