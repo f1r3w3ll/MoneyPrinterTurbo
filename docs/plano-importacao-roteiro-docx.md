@@ -133,8 +133,28 @@ o trabalho possa ser retomado em outra máquina/sessão a qualquer momento.
         `test_script_import_endpoint.py` (sucesso, extensão inválida,
         docx sem seção de script). Suíte completa: só a falha
         pré-existente continua falhando.
-- [ ] 8. Testes automatizados (`test/services/test_script_import.py`,
-      `test/services/test_alignment.py`, ajustes em `test_video.py`)
+- [x] 8. Testes automatizados — commit `e1105e9` (mais os commits das
+      tarefas 2-7, que já incluíram testes unitários próprios)
+      - `test_script_import.py`, `test_alignment.py`,
+        `test_script_import_endpoint.py`: unitários, sempre rodam.
+      - `test_video.py`: cobre `preprocess_video` com duração por cena e
+        `combine_videos_explicit_timeline` (esticamento do último clipe,
+        retorno antecipado sem clipes).
+      - `test_task.py`: `test_align_imported_scenes_*` (unitário, sempre
+        roda) + `test_task_docx_imported_scenes_end_to_end` (ponta a
+        ponta com TTS real, seguindo o padrão existente
+        `test_task_local_materials` — só roda com
+        `MPT_RUN_INTEGRATION_TESTS=1`, pulado por padrão). Tentei rodar
+        com a flag ligada neste ambiente: falhou por falta de acesso de
+        rede ao edge-tts (timeout), não por erro de código — o pipeline
+        chegou corretamente até a chamada de TTS com os parâmetros certos.
+        Rodar de novo num ambiente com rede liberada para validar de
+        ponta a ponta antes de considerar isso 100% confirmado em
+        produção.
+      - Suíte completa (`uv run python -m pytest test/`): 169 passed, 6
+        skipped, só a falha pré-existente e não relacionada
+        (`test_gemini_tts_uses_legacy_submaker_fields`) continua
+        falhando.
 - [ ] 9. WebUI (`webui/Main.py`): upload do `.docx`, preview da tabela de
       cenas, upload ordenado de imagens, indicação do timing calculado
 - [ ] 10. Atualizar README/documentação do novo fluxo
