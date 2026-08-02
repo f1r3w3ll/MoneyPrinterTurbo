@@ -104,9 +104,35 @@ o trabalho possa ser retomado em outra máquina/sessão a qualquer momento.
       - Testes novos em `test_task.py` (`test_align_imported_scenes_*`) e
         em `test_alignment.py` (`test_finalize_scene_timeline_*`). Suíte
         completa: só a falha pré-existente continua falhando.
-- [ ] 7. `app/controllers/v1/video.py`: endpoint(s) novos para upload do
-      `.docx` e do lote de imagens ordenado, reaproveitando o máximo do
-      pipeline `/v1/videos` existente
+- [x] 7. `app/controllers/v1/video.py` — commit `cdef28b`
+      - Novo `POST /v1/scripts/import`: recebe o `.docx`, chama
+        `script_import.parse_docx_script()`, devolve `video_script` +
+        `scenes` (JSON) para o cliente copiar direto em
+        `VideoParams.video_script`/`video_scenes` numa chamada posterior a
+        `POST /v1/videos`. Arquivo temporário salvo em
+        `storage/script_imports/` e apagado logo após o parse (sucesso ou
+        erro). `.docx` inválido -> 400 com a mensagem do
+        `ScriptImportError`.
+      - Renomeei a dataclass interna do parser de `ScriptScene` para
+        `ParsedScene` (`app/services/script_import.py`) para não colidir
+        de nome com o `ScriptScene` (pydantic) de `schema.py` — são
+        estruturas diferentes (uma é a saída crua do parser, sem
+        `start_seconds`/`end_seconds`; a outra é o modelo usado no
+        `VideoParams`).
+      - **Decisão**: não criei um endpoint novo para upload de imagem.
+        `POST /v1/video_materials` já existe e já faz exatamente o
+        necessário (recebe uma imagem, devolve o nome do arquivo já
+        validado). O cliente só precisa chamar esse endpoint uma vez por
+        imagem, **na mesma ordem das cenas**, e montar
+        `VideoParams.video_materials` nessa ordem — é isso que
+        `task.align_imported_scenes()` (tarefa 6) espera (casamento por
+        posição). Se essa decisão mudar (ex.: quiser upload em lote numa
+        única chamada), revisar aqui.
+      - Testado ponta a ponta contra o pacote real do usuário (23 cenas,
+        prompts corretos) e com `TestClient` via
+        `test_script_import_endpoint.py` (sucesso, extensão inválida,
+        docx sem seção de script). Suíte completa: só a falha
+        pré-existente continua falhando.
 - [ ] 8. Testes automatizados (`test/services/test_script_import.py`,
       `test/services/test_alignment.py`, ajustes em `test_video.py`)
 - [ ] 9. WebUI (`webui/Main.py`): upload do `.docx`, preview da tabela de
