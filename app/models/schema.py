@@ -408,3 +408,36 @@ class VideoMaterialUploadResponse(BaseResponse):
                 },
             },
         }
+
+
+class ScriptImportResponse(BaseResponse):
+    """
+    Response for POST /v1/scripts/import.
+
+    `video_script` and `scenes` are meant to be copied verbatim into a
+    later `POST /v1/videos` request as `VideoParams.video_script` and
+    `VideoParams.video_scenes`. `scenes` is returned in narration order;
+    the client must upload the matching images in that same order as
+    `video_materials` so they get pinned to the right scene.
+    """
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "video_script": "On the first day of August...",
+                    "scenes": [
+                        {
+                            "scene_id": "01",
+                            "order": 1,
+                            "narration": "On the first day of August...",
+                            "planned_start_seconds": 0,
+                            "image_prompt": "cinematic photorealistic documentary still...",
+                            "summary": "Cold open: a lone ship in the middle of the Pacific.",
+                        }
+                    ],
+                },
+            },
+        }

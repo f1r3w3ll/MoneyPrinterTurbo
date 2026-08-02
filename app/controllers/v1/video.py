@@ -20,6 +20,7 @@ from app.models.schema import (
     AudioRequest,
     BgmRetrieveResponse,
     BgmUploadResponse,
+    ScriptImportResponse,
     SubtitleRequest,
     TaskDeletionResponse,
     TaskQueryRequest,
@@ -29,6 +30,7 @@ from app.models.schema import (
     VideoMaterialUploadResponse,
     VideoMaterialRetrieveResponse
 )
+from app.services import script_import
 from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
@@ -117,6 +119,57 @@ def create_video(
     background_tasks: BackgroundTasks, request: Request, body: TaskVideoRequest
 ):
     return create_task(request, body, stop_at="video")
+
+
+@router.post(
+    "/scripts/import",
+    response_model=ScriptImportResponse,
+    summary="Parse a .docx script package (narration + scene/image timeline)",
+)
+def import_script_docx(request: Request, file: UploadFile = File(...)):
+    """
+    Parse an uploaded .docx script package (see app/services/script_import.py
+    for the expected shape: a "script" section split into `[SCENE NN]`
+    narration blocks, plus a scene table with an image prompt per scene).
+
+    Returns `video_script` and `scenes` to be copied verbatim into a later
+    `POST /v1/videos` request (`VideoParams.video_script` /
+    `VideoParams.video_scenes`). The client must then upload the matching
+    images, in the same scene order, as `video_materials` so each image
+    gets pinned to its real, aligned time range instead of being
+    auto-placed.
+    """
+    request_id = base.get_task_id(request)
+    safe_filename = _sanitize_upload_filename(file.filename, request_id)
+    if not safe_filename.lower().endswith(".docx"):
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: only .docx files can be imported",
+        )
+
+    imports_dir = utils.storage_dir("script_imports", create=True)
+    saved_path = os.path.join(imports_dir, f"{request_id}-{safe_filename}")
+    try:
+        file.file.seek(0)
+        with open(saved_path, "wb+") as buffer:
+            buffer.write(file.file.read())
+
+        try:
+            imported = script_import.parse_docx_script(saved_path)
+        except script_import.ScriptImportError as exc:
+            raise HttpException(
+                task_id=request_id, status_code=400, message=f"{request_id}: {str(exc)}"
+            )
+    finally:
+        if os.path.exists(saved_path):
+            os.remove(saved_path)
+
+    response = {
+        "video_script": imported.video_script,
+        "scenes": [scene.__dict__ for scene in imported.scenes],
+    }
+    return utils.get_response(200, response)
 
 
 @router.post("/subtitle", response_model=TaskResponse, summary="Generate subtitle only")

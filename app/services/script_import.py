@@ -32,7 +32,7 @@ class ScriptImportError(ValueError):
 
 
 @dataclass
-class ScriptScene:
+class ParsedScene:
     scene_id: str  # normalized, e.g. "01"
     order: int  # 1-based order of appearance in the narration
     narration: str  # narration text belonging to this scene, used for alignment
@@ -44,7 +44,7 @@ class ScriptScene:
 @dataclass
 class ImportedScript:
     video_script: str
-    scenes: List[ScriptScene] = field(default_factory=list)
+    scenes: List[ParsedScene] = field(default_factory=list)
 
 
 def parse_timestamp(value: str) -> Optional[float]:
@@ -99,9 +99,9 @@ def _find_script_section_paragraphs(document) -> List:
     return paragraphs[start_index:end_index]
 
 
-def _extract_scenes_from_script_section(paragraphs) -> List[ScriptScene]:
-    scenes: List[ScriptScene] = []
-    current: Optional[ScriptScene] = None
+def _extract_scenes_from_script_section(paragraphs) -> List[ParsedScene]:
+    scenes: List[ParsedScene] = []
+    current: Optional[ParsedScene] = None
     order = 0
 
     for p in paragraphs:
@@ -112,7 +112,7 @@ def _extract_scenes_from_script_section(paragraphs) -> List[ScriptScene]:
         marker = SCENE_MARKER_RE.match(text)
         if marker:
             order += 1
-            current = ScriptScene(
+            current = ParsedScene(
                 scene_id=f"{int(marker.group('num')):02d}",
                 order=order,
                 narration="",
