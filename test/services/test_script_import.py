@@ -108,3 +108,48 @@ def test_parse_docx_script_without_scene_markers_raises(tmp_path):
 
     with pytest.raises(ScriptImportError):
         parse_docx_script(path)
+
+
+def _build_package_with_table_only_timestamps(tmp_path):
+    """Some packages put the timestamp only in the scene table (as a range,
+    e.g. "0:00 - 0:54"), not inline with the "[SCENE NN]" marker, and use a
+    bare scene number ("01") in the table's Scene column instead of
+    "[SCENE 01]"."""
+    document = docx.Document()
+    document.add_heading("Sample Video", level=1)
+    document.add_heading("4. Full Script", level=2)
+    document.add_paragraph("[SCENE 01]")
+    document.add_paragraph("This is the first scene narration.")
+    document.add_paragraph("[SCENE 02]")
+    document.add_paragraph("This is the second scene narration.")
+
+    document.add_heading("5. Scene Table", level=2)
+    table = document.add_table(rows=1, cols=3)
+    table.rows[0].cells[0].text = "Scene"
+    table.rows[0].cells[1].text = "Timestamp (est.)"
+    table.rows[0].cells[2].text = "Image Prompt (16:9)"
+
+    row = table.add_row()
+    row.cells[0].text = "01"
+    row.cells[1].text = "0:00 - 0:54"
+    row.cells[2].text = "a wide establishing shot"
+
+    row = table.add_row()
+    row.cells[0].text = "02"
+    row.cells[1].text = "0:54 - 1:40"
+    row.cells[2].text = "a close up shot"
+
+    path = os.path.join(tmp_path, "package.docx")
+    document.save(path)
+    return path
+
+
+def test_parse_docx_script_falls_back_to_table_timestamp_range(tmp_path):
+    path = _build_package_with_table_only_timestamps(tmp_path)
+    result = parse_docx_script(path)
+
+    assert len(result.scenes) == 2
+    assert result.scenes[0].planned_start_seconds == 0
+    assert result.scenes[0].image_prompt == "a wide establishing shot"
+    assert result.scenes[1].planned_start_seconds == 54
+    assert result.scenes[1].image_prompt == "a close up shot"

@@ -64,11 +64,31 @@ def parse_timestamp(value: str) -> Optional[float]:
     return hours * 3600 + minutes * 60 + seconds
 
 
-def _normalize_scene_num(text: str) -> Optional[str]:
-    match = SCENE_LABEL_RE.search(text or "")
-    if not match:
+def _parse_table_timestamp(value: str) -> Optional[float]:
+    """Parse a scene table's timestamp cell.
+
+    Some packages put the timestamp inline with the scene marker (handled by
+    parse_timestamp() above); others only put it in the scene table, either
+    as a single value ("00:48") or a range ("0:00 - 0:54" / "0:00–0:54").
+    For a range, the start of the range is what we want.
+    """
+    if not value:
         return None
-    return f"{int(match.group('num')):02d}"
+    first_part = re.split(r"[-–—]", value, maxsplit=1)[0]
+    return parse_timestamp(first_part)
+
+
+def _normalize_scene_num(text: str) -> Optional[str]:
+    text = text or ""
+    match = SCENE_LABEL_RE.search(text)
+    if match:
+        return f"{int(match.group('num')):02d}"
+    # Some scene tables list the scene number as a bare cell value ("01"),
+    # without the "SCENE" word used in the narration section's markers.
+    bare_match = re.fullmatch(r"0*(\d+)", text.strip())
+    if bare_match:
+        return f"{int(bare_match.group(1)):02d}"
+    return None
 
 
 def _find_script_section_paragraphs(document) -> List:
@@ -139,7 +159,7 @@ def _extract_scenes_from_script_section(paragraphs) -> List[ParsedScene]:
 
 
 def _find_scene_table(document) -> Optional[Dict[str, Dict[str, str]]]:
-    """Return {scene_id: {"summary": ..., "image_prompt": ...}} from the scene table, if any."""
+    """Return {scene_id: {"summary": ..., "image_prompt": ..., "timestamp": ...}} from the scene table, if any."""
     for table in document.tables:
         if not table.rows:
             continue
@@ -157,6 +177,8 @@ def _find_scene_table(document) -> Optional[Dict[str, Dict[str, str]]]:
                 col_index["summary"] = idx
             elif "image" in header:
                 col_index["image_prompt"] = idx
+            elif "timestamp" in header:
+                col_index["timestamp"] = idx
             elif "scene" in header:
                 col_index.setdefault("scene", idx)
 
@@ -174,6 +196,9 @@ def _find_scene_table(document) -> Optional[Dict[str, Dict[str, str]]]:
                 else "",
                 "image_prompt": cells[col_index["image_prompt"]]
                 if "image_prompt" in col_index and col_index["image_prompt"] < len(cells)
+                else "",
+                "timestamp": cells[col_index["timestamp"]]
+                if "timestamp" in col_index and col_index["timestamp"] < len(cells)
                 else "",
             }
         return by_scene
@@ -195,6 +220,12 @@ def parse_docx_script(file_path: str) -> ImportedScript:
             if extra:
                 scene.summary = extra["summary"]
                 scene.image_prompt = extra["image_prompt"]
+                # Some packages only put the timestamp in the scene table,
+                # not inline with the "[SCENE NN]" marker in the narration.
+                if scene.planned_start_seconds is None:
+                    scene.planned_start_seconds = _parse_table_timestamp(
+                        extra.get("timestamp", "")
+                    )
 
     video_script = "\n\n".join(scene.narration for scene in scenes if scene.narration)
 
