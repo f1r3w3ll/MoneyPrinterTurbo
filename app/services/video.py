@@ -427,6 +427,45 @@ def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileC
     return clip
 
 
+def _resize_clip_to_target(clip, video_width: int, video_height: int):
+    """
+    Resize/letterbox a clip to exactly match the target resolution, preserving
+    aspect ratio via letterbox/pillarbox on a black background when the
+    source ratio does not match the target ratio. Extracted from
+    combine_videos() so the explicit-timeline assembly path (see
+    combine_videos_explicit_timeline()) can reuse the exact same behavior.
+    """
+    clip_w, clip_h = clip.size
+    if clip_w == video_width and clip_h == video_height:
+        return clip
+
+    clip_ratio = clip.w / clip.h
+    video_ratio = video_width / video_height
+    logger.debug(
+        f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, "
+        f"target: {video_width}x{video_height}, ratio: {video_ratio:.2f}"
+    )
+
+    if clip_ratio == video_ratio:
+        return clip.resized(new_size=(video_width, video_height))
+
+    if clip_ratio > video_ratio:
+        scale_factor = video_width / clip_w
+    else:
+        scale_factor = video_height / clip_h
+
+    new_width = int(clip_w * scale_factor)
+    new_height = int(clip_h * scale_factor)
+
+    background = ColorClip(
+        size=(video_width, video_height), color=(0, 0, 0)
+    ).with_duration(clip.duration)
+    clip_resized = clip.resized(new_size=(new_width, new_height)).with_position(
+        "center"
+    )
+    return CompositeVideoClip([background, clip_resized])
+
+
 def close_clip(clip):
     if clip is None:
         return
@@ -623,26 +662,8 @@ def combine_videos(
             clip_duration = clip.duration
             # Not all videos are same size, so we need to resize them
             clip_w, clip_h = clip.size
-            if clip_w != video_width or clip_h != video_height:
-                clip_ratio = clip.w / clip.h
-                video_ratio = video_width / video_height
-                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
-                
-                if clip_ratio == video_ratio:
-                    clip = clip.resized(new_size=(video_width, video_height))
-                else:
-                    if clip_ratio > video_ratio:
-                        scale_factor = video_width / clip_w
-                    else:
-                        scale_factor = video_height / clip_h
+            clip = _resize_clip_to_target(clip, video_width, video_height)
 
-                    new_width = int(clip_w * scale_factor)
-                    new_height = int(clip_h * scale_factor)
-
-                    background = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
-                    clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
-                    clip = CompositeVideoClip([background, clip_resized])
-                    
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if transition_value in (None, VideoTransitionMode.none.value):
                 clip = clip
@@ -739,6 +760,97 @@ def combine_videos(
     # clean temp files
     delete_files(clip_files)
             
+    logger.info("video combining completed")
+    return combined_video_path
+
+
+def combine_videos_explicit_timeline(
+    combined_video_path: str,
+    video_paths: List[str],
+    audio_file: str,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+    threads: int = 2,
+) -> str:
+    """
+    Assemble a video from clips that already carry their final, real
+    duration (one clip per docx-imported scene, produced by
+    preprocess_video() using each MaterialInfo's start_time/end_time).
+
+    Unlike combine_videos(), there is no random/sequential picking, no
+    per-clip max-duration capping and no looping over a pool of stock
+    footage: the clips are simply resized to the target resolution and
+    played back-to-back in the given order, because that order and each
+    clip's own duration already encode the narration timeline. The only
+    adjustment made here is stretching the final clip to cover any small
+    gap left between the last scene's aligned end time and the actual
+    audio duration (e.g. when the last scene could not be aligned exactly).
+    """
+    if not video_paths:
+        logger.warning("no clips available for explicit-timeline assembly")
+        return combined_video_path
+
+    audio_clip = AudioFileClip(audio_file)
+    try:
+        audio_duration = audio_clip.duration
+    finally:
+        close_clip(audio_clip)
+    required_video_duration = _get_required_video_duration(audio_duration)
+    logger.info(
+        f"explicit-timeline assembly: audio duration {audio_duration:.2f}s, "
+        f"required duration {required_video_duration:.2f}s, clips: {len(video_paths)}"
+    )
+
+    output_dir = os.path.dirname(combined_video_path)
+    aspect = VideoAspect(video_aspect)
+    video_width, video_height = aspect.to_resolution()
+
+    processed_files = []
+    total_duration = 0.0
+    for i, video_path in enumerate(video_paths):
+        clip = _open_video_clip_quietly(video_path)
+        try:
+            clip = _resize_clip_to_target(clip, video_width, video_height)
+
+            # Stretch only the last clip to close any gap against the real
+            # audio duration, so the video never ends before the narration.
+            is_last = i == len(video_paths) - 1
+            if is_last and total_duration + clip.duration < required_video_duration:
+                clip = clip.with_duration(required_video_duration - total_duration)
+
+            clip_file = f"{output_dir}/temp-scene-clip-{i + 1}.mp4"
+            _write_videofile_with_codec_fallback(
+                clip,
+                clip_file,
+                codec=_get_configured_video_codec(),
+                logger=None,
+                fps=fps,
+            )
+            total_duration += clip.duration
+            processed_files.append(clip_file)
+        except Exception as e:
+            logger.error(f"failed to process scene clip {video_path}: {str(e)}")
+        finally:
+            close_clip(clip)
+
+    if not processed_files:
+        logger.warning("no scene clips could be processed for explicit-timeline assembly")
+        return combined_video_path
+
+    if len(processed_files) == 1:
+        shutil.copy(processed_files[0], combined_video_path)
+        delete_files(processed_files)
+        logger.info("video combining completed (single scene clip)")
+        return combined_video_path
+
+    logger.info(f"concatenating {len(processed_files)} scene clips with ffmpeg")
+    concat_video_clips_with_ffmpeg(
+        clip_files=processed_files,
+        output_file=combined_video_path,
+        threads=threads,
+        output_dir=output_dir,
+    )
+    delete_files(processed_files)
+
     logger.info("video combining completed")
     return combined_video_path
 
@@ -1195,19 +1307,26 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 logger.info(f"processing image: {material_source_path}")
                 # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再重新创建用于导出的图片 clip。
                 close_clip(clip)
-                # Create an image clip and set its duration to 3 seconds
+                # 显式指定了 start_time/end_time 的素材（docx 导入的场景图片）使用
+                # 该场景对齐后的真实时长；否则沿用全局 clip_duration，保持既有行为不变。
+                image_duration = clip_duration
+                if material.start_time is not None and material.end_time is not None:
+                    scene_duration = material.end_time - material.start_time
+                    if scene_duration > 0:
+                        image_duration = scene_duration
+                # Create an image clip and set its duration
                 clip = (
                     ImageClip(material_source_path)
-                    .with_duration(clip_duration)
+                    .with_duration(image_duration)
                     .with_position("center")
                 )
                 # Apply a zoom effect using the resize method.
                 # A lambda function is used to make the zoom effect dynamic over time.
                 # The zoom effect starts from the original size and gradually scales up to 120%.
-                # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
+                # t represents the current time, and clip.duration is the total duration of the clip.
                 # Note: 1 represents 100% size, so 1.2 represents 120% size.
                 zoom_clip = clip.resized(
-                    lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+                    lambda t: 1 + (image_duration * 0.03) * (t / clip.duration)
                 )
 
                 # Optionally, create a composite video clip containing the zoomed clip.

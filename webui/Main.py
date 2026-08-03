@@ -18,12 +18,13 @@ if root_dir not in sys.path:
 from app.config import config
 from app.models.schema import (
     MaterialInfo,
+    ScriptScene,
     VideoAspect,
     VideoConcatMode,
     VideoParams,
     VideoTransitionMode,
 )
-from app.services import llm, voice
+from app.services import llm, script_import, voice
 from app.services import task as tm
 from app.utils import utils
 
@@ -63,6 +64,10 @@ if "video_subject" not in st.session_state:
     st.session_state["video_subject"] = ""
 if "video_script" not in st.session_state:
     st.session_state["video_script"] = ""
+if "video_scenes" not in st.session_state:
+    # 从 .docx 脚本包解析出的场景列表（见 app/services/script_import.py），
+    # 每项是 ScriptScene 的字典表示。为空时表示未走 docx 导入流程。
+    st.session_state["video_scenes"] = []
 if "video_terms" not in st.session_state:
     st.session_state["video_terms"] = ""
 if "video_script_prompt" not in st.session_state:
@@ -702,6 +707,71 @@ with left_panel:
             key="video_subject",
         ).strip()
 
+        with st.expander(tr("Import Script Package (.docx)"), expanded=False):
+            st.caption(tr("Import Script Package Help"))
+            uploaded_script_docx = st.file_uploader(
+                tr("Upload .docx Script Package"),
+                type=["docx"],
+                accept_multiple_files=False,
+                key="script_docx_uploader",
+            )
+            if uploaded_script_docx is not None and st.button(
+                tr("Parse Script Package"), key="parse_script_docx"
+            ):
+                docx_temp_path = os.path.join(
+                    utils.storage_dir("script_imports", create=True),
+                    f"{uuid4()}_{uploaded_script_docx.name}",
+                )
+                try:
+                    with open(docx_temp_path, "wb") as f:
+                        f.write(uploaded_script_docx.getbuffer())
+                    imported = script_import.parse_docx_script(docx_temp_path)
+                except script_import.ScriptImportError as exc:
+                    st.error(f"{tr('Failed to parse script package')}: {str(exc)}")
+                else:
+                    st.session_state["video_script"] = imported.video_script
+                    st.session_state["video_scenes"] = [
+                        {
+                            "scene_id": scene.scene_id,
+                            "order": scene.order,
+                            "narration": scene.narration,
+                            "planned_start_seconds": scene.planned_start_seconds,
+                            "summary": scene.summary,
+                            "image_prompt": scene.image_prompt,
+                        }
+                        for scene in imported.scenes
+                    ]
+                    st.success(
+                        f"{tr('Parsed scenes from script package')}: {len(imported.scenes)}"
+                    )
+                finally:
+                    if os.path.exists(docx_temp_path):
+                        os.remove(docx_temp_path)
+
+            if st.session_state["video_scenes"]:
+                st.info(
+                    f"{tr('Scenes imported')}: {len(st.session_state['video_scenes'])}. "
+                    + tr(
+                        "Upload local images below in this exact order to pin each "
+                        "one to its scene's real time range."
+                    )
+                )
+                st.dataframe(
+                    [
+                        {
+                            tr("Scene"): scene["scene_id"],
+                            tr("Planned Start"): scene["planned_start_seconds"],
+                            tr("Image Prompt"): scene["image_prompt"],
+                        }
+                        for scene in st.session_state["video_scenes"]
+                    ],
+                    hide_index=True,
+                    use_container_width=True,
+                )
+                if st.button(tr("Clear Imported Scenes"), key="clear_video_scenes"):
+                    st.session_state["video_scenes"] = []
+                    st.rerun()
+
         video_languages = [
             (tr("Auto Detect"), ""),
         ]
@@ -835,6 +905,13 @@ with middle_panel:
         if params.video_source == "local":
             # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
             local_file_types = ["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"]
+            if st.session_state["video_scenes"]:
+                st.caption(
+                    tr(
+                        "Scenes were imported from a script package: upload one image "
+                        "per scene, in the same order as the table above."
+                    )
+                )
             uploaded_files = st.file_uploader(
                 tr("Upload Local Files"),
                 type=local_file_types + [file_type.upper() for file_type in local_file_types],
@@ -1512,6 +1589,31 @@ if start_button:
             m.duration = material.get("duration", 0)
             if m.url:
                 params.video_materials.append(m)
+
+    if st.session_state["video_scenes"]:
+        params.video_scenes = [
+            ScriptScene(
+                scene_id=scene["scene_id"],
+                order=scene["order"],
+                narration=scene["narration"],
+                planned_start_seconds=scene["planned_start_seconds"],
+                summary=scene["summary"],
+                image_prompt=scene["image_prompt"],
+            )
+            for scene in st.session_state["video_scenes"]
+        ]
+        if params.video_materials and len(params.video_materials) != len(
+            params.video_scenes
+        ):
+            st.warning(
+                f"{tr('Uploaded image count does not match imported scene count')}: "
+                f"{len(params.video_materials)} {tr('images')} vs "
+                f"{len(params.video_scenes)} {tr('scenes')}. "
+                + tr(
+                    "Images are pinned to scenes by upload order; extra items on "
+                    "either side are ignored."
+                )
+            )
 
     log_container = st.empty()
     log_records = []

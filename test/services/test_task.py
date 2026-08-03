@@ -10,7 +10,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.services import task as tm
-from app.models.schema import MaterialInfo, VideoParams
+from app.models.schema import MaterialInfo, ScriptScene, VideoParams
 from app.utils import utils
 
 resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources")
@@ -163,6 +163,86 @@ class TestTaskService(unittest.TestCase):
         tts.assert_not_called()
         update_task.assert_called_with(task_id, state=tm.const.TASK_STATE_FAILED)
 
+    def _write_srt(self, path, entries):
+        lines = []
+        for idx, (start, end, text) in enumerate(entries, start=1):
+            lines.append(str(idx))
+            lines.append(f"{start} --> {end}")
+            lines.append(text)
+            lines.append("")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+
+    def test_align_imported_scenes_pins_materials_by_upload_order(self):
+        """
+        docx 导入场景后，每张按上传顺序提供的本地图片，应该被固定到
+        它所对应场景在真实音频里的开始/结束时间，而不是走随机/顺序拼接。
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            subtitle_path = os.path.join(temp_dir, "subtitle.srt")
+            self._write_srt(
+                subtitle_path,
+                [
+                    ("00:00:00,000", "00:00:02,000", "First scene narration."),
+                    ("00:00:02,000", "00:00:05,000", "Second scene narration."),
+                ],
+            )
+
+            scenes = [
+                ScriptScene(
+                    scene_id="01",
+                    order=1,
+                    narration="First scene narration.",
+                    planned_start_seconds=0,
+                ),
+                ScriptScene(
+                    scene_id="02",
+                    order=2,
+                    narration="Second scene narration.",
+                    planned_start_seconds=3,
+                ),
+            ]
+            materials = [
+                MaterialInfo(provider="local", url="scene-1.png"),
+                MaterialInfo(provider="local", url="scene-2.png"),
+            ]
+            params = VideoParams(
+                video_subject="test",
+                video_scenes=scenes,
+                video_materials=materials,
+                video_source="local",
+            )
+
+            tm.align_imported_scenes(
+                task_id="align-test",
+                params=params,
+                subtitle_path=subtitle_path,
+                audio_duration=5.0,
+            )
+
+            self.assertEqual(materials[0].start_time, 0.0)
+            self.assertEqual(materials[0].end_time, 2.0)
+            self.assertEqual(materials[1].start_time, 2.0)
+            self.assertEqual(materials[1].end_time, 5.0)
+
+    def test_align_imported_scenes_noop_without_video_scenes(self):
+        materials = [MaterialInfo(provider="local", url="scene-1.png")]
+        params = VideoParams(
+            video_subject="test",
+            video_materials=materials,
+            video_source="local",
+        )
+
+        tm.align_imported_scenes(
+            task_id="align-test-noop",
+            params=params,
+            subtitle_path="",
+            audio_duration=5.0,
+        )
+
+        self.assertIsNone(materials[0].start_time)
+        self.assertIsNone(materials[0].end_time)
+
     @unittest.skipUnless(
         RUN_INTEGRATION_TESTS,
         "MPT_RUN_INTEGRATION_TESTS not set",
@@ -209,7 +289,86 @@ class TestTaskService(unittest.TestCase):
         )
         result = tm.start(task_id=task_id, params=params)
         print(result)
-    
+
+    @unittest.skipUnless(
+        RUN_INTEGRATION_TESTS,
+        "MPT_RUN_INTEGRATION_TESTS not set",
+    )
+    def test_task_docx_imported_scenes_end_to_end(self):
+        """
+        端到端验证 docx 导入流程：解析场景 -> 真实 TTS 生成音频/字幕 ->
+        场景对齐 -> 每张图片按对齐后的真实时长拼接成片。
+        """
+        from app.services import script_import
+
+        # Build a small script package inline instead of depending on the
+        # user's uploaded sample, so this test is self-contained.
+        import docx as docx_lib
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            document = docx_lib.Document()
+            document.add_heading("Sample Video", level=1)
+            document.add_heading("Full Script", level=2)
+            document.add_paragraph("[SCENE 01]   00:00")
+            document.add_paragraph(
+                "Money is not only a medium of exchange, it is a tool for allocating resources."
+            )
+            document.add_paragraph("[SCENE 02]   00:10")
+            document.add_paragraph(
+                "It can meet basic needs like food and housing, and open doors to education."
+            )
+            package_path = os.path.join(temp_dir, "package.docx")
+            document.save(package_path)
+
+            imported = script_import.parse_docx_script(package_path)
+            self.assertEqual(len(imported.scenes), 2)
+
+            video_materials = []
+            for i, _scene in enumerate(imported.scenes, start=1):
+                video_materials.append(
+                    MaterialInfo(
+                        provider="local",
+                        url=os.path.join(resources_dir, f"{i}.png"),
+                        duration=0,
+                    )
+                )
+
+            video_scenes = [
+                ScriptScene(
+                    scene_id=s.scene_id,
+                    order=s.order,
+                    narration=s.narration,
+                    planned_start_seconds=s.planned_start_seconds,
+                    summary=s.summary,
+                    image_prompt=s.image_prompt,
+                )
+                for s in imported.scenes
+            ]
+
+            task_id = "11111111-1111-1111-1111-111111111111"
+            params = VideoParams(
+                video_subject="money",
+                video_script=imported.video_script,
+                video_scenes=video_scenes,
+                video_aspect="9:16",
+                video_clip_duration=3,
+                video_count=1,
+                video_source="local",
+                video_materials=video_materials,
+                voice_name="en-US-AriaNeural-Female",
+                subtitle_enabled=True,
+                n_threads=2,
+                paragraph_number=1,
+            )
+
+            result = tm.start(task_id=task_id, params=params)
+            self.assertIsNotNone(result)
+
+            for material in video_materials:
+                self.assertIsNotNone(material.start_time)
+                self.assertIsNotNone(material.end_time)
+                self.assertLess(material.start_time, material.end_time)
+
 
 if __name__ == "__main__":
     unittest.main()

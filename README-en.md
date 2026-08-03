@@ -94,6 +94,7 @@ materials, video subtitles, and video background music before synthesizing a hig
       supports `subtitle outlining`
 - [x] Supports **background music**, either random or specified music files, with adjustable `background music volume`
 - [x] Video material sources are **high-definition** and **royalty-free**, and you can also use your own **local materials**
+- [x] Supports importing a **`.docx` script package** (narration + a scene table with timing and image prompts) for static-image slideshow videos, pinning each uploaded image to its scene's real, aligned time range
 - [x] Supports multiple stock video providers: **Pexels**, **Pixabay**, and **Coverr**
 - [x] Supports integration with various models such as **OpenAI**, **AIHubMix**, **AIML API**, **EvoLink**, **Moonshot**, **Azure**, **gpt4free**, **one-api**, **Qwen**, **Google Gemini**, **Ollama**, **DeepSeek**, **MiniMax**, **ERNIE**, **Pollinations**, **ModelScope** and more
 
@@ -366,6 +367,53 @@ Background music for videos is located in the project's `resource/songs` directo
 
 > The current project includes some default music from YouTube videos. If there are copyright issues, please delete
 > them.
+
+## Importing a Script Package (.docx) with Timed Scenes 📄🖼️
+
+For "static image slideshow with narration" videos (a documentary-style script paired with a fixed set of illustration images, one per scene), you can import a `.docx` script package instead of typing the script by hand and letting materials be auto-picked.
+
+**Expected `.docx` shape:**
+
+- A section whose heading contains the word "script" (e.g. "4. Full Script") holding the narration, split into scenes with marker lines such as `[SCENE 01]   00:48` (the timestamp is just the author's estimate, not used directly — see below).
+- A table with a header row containing a "Scene" column and an "Image prompt" column (an optional "Scene summary" column is also picked up). Each row's image prompt is matched back to its scene by scene number.
+
+**How timing works:** the timestamps in the `.docx` are estimated from a words-per-minute pace at writing time, so they never exactly match the real narration (TTS or a supplied audio file speaks at its own pace). Instead of trusting those estimates, MoneyPrinterTurbo:
+
+1. Generates the narration audio and its subtitle file as usual (one subtitle entry per sentence).
+2. Walks that subtitle file in the same per-sentence chunks used to split each scene's narration text, recovering each scene's **real** start/end time in the actual audio.
+3. Falls back to proportionally scaling the docx's planned timestamps for any scene that could not be aligned this way, so every scene always ends up with a full, gapless, monotonic time range.
+4. Pins each uploaded image (**in upload order**, matching the scene table's order) to its scene's real time range, instead of using the usual random/sequential material picking — the video becomes an exact slideshow of your narration timeline.
+
+**Via the WebUI:** open the "Import Script Package (.docx)" panel above the script box, upload the file and click "Parse Script Package". This fills in the script and shows a preview table of the scenes. Then, in the "Local file" material section, upload your images **in the same order as the table**. Background music still comes from the royalty-free `resource/songs` library as usual, and narration audio can be TTS-generated or a custom uploaded audio file, exactly as with any other video.
+
+**Via the API:**
+
+```bash
+# 1. Parse the .docx into a script + scene list
+curl -X POST http://localhost:8080/api/v1/scripts/import \
+  -F "file=@my-script-package.docx"
+# => {"status": 200, "data": {"video_script": "...", "scenes": [...]}}
+
+# 2. Upload each scene's image, in scene order
+curl -X POST http://localhost:8080/api/v1/video_materials -F "file=@scene-01.png"
+curl -X POST http://localhost:8080/api/v1/video_materials -F "file=@scene-02.png"
+# ...
+
+# 3. Create the video, echoing back video_script/scenes from step 1 and
+#    listing the uploaded images (from step 2) in the same scene order
+curl -X POST http://localhost:8080/api/v1/videos -H "Content-Type: application/json" -d '{
+  "video_subject": "...",
+  "video_script": "<video_script from step 1>",
+  "video_scenes": [ /* scenes array from step 1, unmodified */ ],
+  "video_source": "local",
+  "video_materials": [
+    {"provider": "local", "url": "scene-01.png"},
+    {"provider": "local", "url": "scene-02.png"}
+  ]
+}'
+```
+
+> **Note:** images are matched to scenes purely by position. If the number of uploaded images does not match the number of scenes, or `preprocess_video` rejects an image (e.g. below the 480×480 minimum resolution), the remaining pairing shifts — check the material count against the scene count before generating.
 
 ## Subtitle Fonts 🅰
 

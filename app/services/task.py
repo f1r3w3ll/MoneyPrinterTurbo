@@ -8,7 +8,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, video, voice, upload_post
+from app.services import alignment, llm, material, subtitle, video, voice, upload_post
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -215,6 +215,48 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     return subtitle_path
 
 
+def align_imported_scenes(task_id, params, subtitle_path, audio_duration):
+    """
+    Pin each uploaded local image (in upload order) to the real time range
+    of the docx scene it illustrates.
+
+    Only runs when the request carries `video_scenes` (produced by
+    parsing a .docx script package, see app/services/script_import.py).
+    The docx's per-scene timestamps are estimates from the script's
+    writing-time pace, not the real narration; `alignment.align_scenes_to_subtitle`
+    recovers each scene's real start/end from the subtitle file that was
+    just generated for this same script, and `alignment.finalize_scene_timeline`
+    guarantees every scene ends up with a usable, gapless time range even
+    if some individual scenes could not be aligned.
+    """
+    scenes = params.video_scenes
+    if not scenes:
+        return
+
+    if subtitle_path:
+        alignment.align_scenes_to_subtitle(scenes, subtitle_path)
+    else:
+        logger.warning(
+            f"task_id: {task_id}, no subtitle available to align imported scenes "
+            "against; falling back entirely to proportional scaling of the "
+            "docx's planned timestamps"
+        )
+
+    alignment.finalize_scene_timeline(scenes, audio_duration)
+
+    materials = params.video_materials or []
+    if len(materials) != len(scenes):
+        logger.warning(
+            f"task_id: {task_id}, {len(materials)} uploaded materials but "
+            f"{len(scenes)} imported scenes; pinning by position, extra "
+            "items on either side are ignored"
+        )
+
+    for material, scene in zip(materials, scenes):
+        material.start_time = scene.start_seconds
+        material.end_time = scene.end_seconds
+
+
 def get_video_materials(task_id, params, video_terms, audio_duration):
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
@@ -277,16 +319,28 @@ def generate_final_videos(
             utils.task_dir(task_id), f"combined-{index}.mp4"
         )
         logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
-        video.combine_videos(
-            combined_video_path=combined_video_path,
-            video_paths=downloaded_videos,
-            audio_file=audio_file,
-            video_aspect=params.video_aspect,
-            video_concat_mode=video_concat_mode,
-            video_transition_mode=video_transition_mode,
-            max_clip_duration=params.video_clip_duration,
-            threads=params.n_threads,
-        )
+        if params.video_scenes:
+            # docx-imported scenes: each clip already carries its own real,
+            # aligned duration (see align_imported_scenes), so it is placed
+            # on the timeline as-is instead of being auto-picked/looped.
+            video.combine_videos_explicit_timeline(
+                combined_video_path=combined_video_path,
+                video_paths=downloaded_videos,
+                audio_file=audio_file,
+                video_aspect=params.video_aspect,
+                threads=params.n_threads,
+            )
+        else:
+            video.combine_videos(
+                combined_video_path=combined_video_path,
+                video_paths=downloaded_videos,
+                audio_file=audio_file,
+                video_aspect=params.video_aspect,
+                video_concat_mode=video_concat_mode,
+                video_transition_mode=video_transition_mode,
+                max_clip_duration=params.video_clip_duration,
+                threads=params.n_threads,
+            )
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
@@ -379,6 +433,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             subtitle_path=subtitle_path,
         )
         return {"subtitle_path": subtitle_path}
+
+    # 4b. Align imported docx scenes (if any) to the real narration timeline,
+    # pinning each uploaded image's start_time/end_time before materials are
+    # preprocessed.
+    align_imported_scenes(task_id, params, subtitle_path, audio_duration)
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
