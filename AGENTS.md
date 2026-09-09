@@ -255,5 +255,6 @@ O gerador original foi preservado.
 - A correção de duração restaura prompts visuais, transições, durações por
   cena e campos narrativos técnicos do roteiro original; somente a narração
   retornada pela IA é aproveitada. Isso evita `duration_seconds` inválido.
-  Chamadas OpenAI de roteiro reservam 12.000 tokens de saída para acomodar
-  roteiros longos.
+  Chamadas OpenAI, DeepSeek, Kimi e Qwen de roteiro reservam 12.000 tokens de
+  saída; Claude e Gemini usam 16.000. Isso acomoda roteiros longos em todos os
+  providers disponíveis no Estúdio.

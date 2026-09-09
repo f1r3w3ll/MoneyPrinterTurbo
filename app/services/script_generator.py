@@ -384,6 +384,7 @@ Output ONLY the JSON, no explanations or markdown formatting.
                 {"role": "user", "content": prompt},
             ],
             temperature=0.7,
+            max_tokens=12000,
             response_format={"type": "json_object"},
         )
 
@@ -414,6 +415,7 @@ Output ONLY the JSON, no explanations or markdown formatting.
                 {"role": "user", "content": prompt},
             ],
             temperature=0.7,
+            max_tokens=12000,
         )
 
         content = response.choices[0].message.content
@@ -456,6 +458,7 @@ Output ONLY the JSON, no explanations or markdown formatting.
                 {"role": "user", "content": prompt},
             ],
             temperature=0.7,
+            max_tokens=12000,
         )
 
         content = response.choices[0].message.content
