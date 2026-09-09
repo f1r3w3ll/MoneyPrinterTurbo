@@ -17,8 +17,13 @@ def _headers():
 def youtube_accounts():
     response = requests.get(f'{BASE_URL}/social-accounts', headers=_headers(), timeout=30)
     response.raise_for_status()
-    values = response.json().get('data', response.json())
-    return [item for item in values if str(item.get('platform', '')).upper() == 'YOUTUBE']
+    payload = response.json()
+    values = payload.get('data', payload) if isinstance(payload, dict) else payload
+    if isinstance(values, dict):
+        values = values.get('items') or values.get('socialAccounts') or []
+    if not isinstance(values, list):
+        raise ValueError('A WoopSocial retornou uma lista de canais em formato inválido.')
+    return [item for item in values if isinstance(item, dict) and str(item.get('platform', '')).upper() == 'YOUTUBE']
 
 
 def publish(video_path, account_id, title, description, privacy, scheduled_at=None):

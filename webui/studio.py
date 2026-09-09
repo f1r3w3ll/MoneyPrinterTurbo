@@ -525,6 +525,37 @@ def _history():
                     st.download_button(f'Baixar {label.lower()}', path.read_bytes(), file_name=path.name, key=f'{name}_{task_id}')
 
 
+def _publication_title(record):
+    """Prefer the editorial YouTube title over the short thumbnail overlay."""
+    params = record.get('params') or {}
+    script = params.get('structured_script') or {}
+    editorial = (script.get('metadata') or {}).get('editorial') or {}
+    package = editorial.get('selected_package') or {}
+    return package.get('title') or script.get('title') or record.get('title', '')
+
+
+def _publication_description(raw):
+    """Extract displayable description text from a JSON-mode LLM response."""
+    if isinstance(raw, dict):
+        payload = raw
+    else:
+        content = str(raw or '').strip()
+        if content.startswith('```'):
+            content = content.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
+        try:
+            payload = json.loads(content)
+        except ValueError:
+            return content
+    if not isinstance(payload, dict):
+        raise ValueError('A IA não retornou uma descrição válida. Tente gerar novamente.')
+    description = payload.get('description') or payload.get('content')
+    if isinstance(description, list):
+        description = '\n'.join(str(item) for item in description)
+    if not isinstance(description, str) or not description.strip():
+        raise ValueError('A IA não retornou o campo de descrição. Tente gerar novamente.')
+    return description.strip()
+
+
 def _publication(settings):
     st.subheader('Publicação no YouTube')
     backend = importlib.import_module('app.services.studio')
@@ -533,15 +564,15 @@ def _publication(settings):
         st.info('Conclua uma produção para publicá-la.')
         return
     selected = st.selectbox('Vídeo concluído', records, format_func=lambda item: item['title'], key='publication_video')
-    params = selected.get('params', {})
-    title = st.text_input('Título de publicação', value=params.get('thumbnail_text') or selected['title'], key=f'publication_title_{selected["id"]}')
+    title = st.text_input('Título de publicação', value=_publication_title(selected), key=f'publication_title_{selected["id"]}')
     if st.button('Gerar descrição com IA', key=f'publication_ai_{selected["id"]}'):
         try:
             from app.services.script_generator import ScriptGeneratorService
             project = backend.get_project(selected['id'])
             language = (project['script'].get('metadata') or {}).get('script_language', 'pt-BR')
-            prompt = f"Generate a YouTube description in {language}, with short chapters and relevant tags. Return plain text only. Title: {title}. Script: {json.dumps(project['script'], ensure_ascii=False)}"
-            st.session_state[f'publication_description_{selected["id"]}'] = ScriptGeneratorService().generate_editorial_json('openai', prompt)
+            prompt = f"Generate a YouTube description in {language}, with short chapters and relevant tags. Return exactly one JSON object with only this field: {{\"description\": \"the complete final description\"}}. Title: {title}. Script: {json.dumps(project['script'], ensure_ascii=False)}"
+            generated = ScriptGeneratorService().generate_editorial_json('openai', prompt)
+            st.session_state[f'publication_description_{selected["id"]}'] = _publication_description(generated)
         except Exception as exc:
             st.error(redact(exc))
     description = st.text_area('Descrição', value=st.session_state.get(f'publication_description_{selected["id"]}', ''), key=f'publication_description_{selected["id"]}', height=220)

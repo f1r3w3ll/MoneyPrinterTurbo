@@ -275,3 +275,15 @@ O gerador original foi preservado.
   long-form. O prompt exige CTA no idioma da narração; em roteiro inglês,
   `inscreva-se` em uma cena CTA é normalizado para `Subscribe`, sem alterar o
   nome de marca do canal.
+
+## Publicação — 09/09/2026
+
+- A aba Publicação usa o título editorial completo salvo em
+  `metadata.editorial.selected_package.title` como título inicial do YouTube;
+  `thumbnail_text` continua sendo apenas a frase curta sobreposta à imagem.
+  Ambos permanecem editáveis antes do envio.
+- Como as chamadas OpenAI são configuradas para responder em JSON, a geração
+  de descrição pede explicitamente o campo `description` e a interface extrai
+  apenas esse texto, sem expor JSON ao usuário.
+- O cliente WoopSocial aceita respostas de canais tanto como lista no nível
+  raiz quanto em envelopes `data`/`items`/`socialAccounts`.

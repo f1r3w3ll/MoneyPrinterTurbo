@@ -365,6 +365,17 @@ class StudioTests(unittest.TestCase):
             self.assertTrue(studio._folder(identifier).exists())
             studio._release(identifier)
 
+    def test_woopsocial_accepts_a_top_level_accounts_list(self):
+        from app.services import woopsocial
+        response = Mock()
+        response.json.return_value = [
+            {'id': 'youtube-1', 'platform': 'YOUTUBE', 'name': 'Canal'},
+            {'id': 'instagram-1', 'platform': 'INSTAGRAM', 'name': 'Outro'},
+        ]
+        with patch('app.services.woopsocial.requests.get', return_value=response), \
+             patch('app.services.woopsocial._headers', return_value={}):
+            self.assertEqual(woopsocial.youtube_accounts(), [{'id': 'youtube-1', 'platform': 'YOUTUBE', 'name': 'Canal'}])
+
     def test_queued_production_cannot_be_resumed_twice_and_survives_restart(self):
         from app.services import studio
         with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
