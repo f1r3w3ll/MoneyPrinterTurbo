@@ -57,27 +57,14 @@ class ScriptGeneratorService:
         if not llm_config.get('enabled', True):
             raise ValueError(f'O provedor {provider} está desabilitado nas configurações.')
 
-        # Build prompt
-        prompt = self._build_prompt(request)
-
-        # Generate with selected provider
-        if provider == "openai":
-            script_json, model, tokens = self._generate_openai(prompt, llm_config)
-        elif provider == "claude":
-            script_json, model, tokens = self._generate_claude(prompt, llm_config)
-        elif provider == "gemini":
-            script_json, model, tokens = self._generate_gemini(prompt, llm_config)
-        elif provider == "deepseek":
-            script_json, model, tokens = self._generate_deepseek(prompt, llm_config)
-        elif provider == "kimi":
-            script_json, model, tokens = self._generate_kimi(prompt, llm_config)
-        elif provider == "qwen":
-            script_json, model, tokens = self._generate_qwen(prompt, llm_config)
+        target_scenes = self._target_scene_count(request)
+        if target_scenes > 12:
+            script, model, tokens = self._generate_script_batches(request, llm_config, target_scenes)
         else:
-            raise ValueError(f"Unsupported LLM provider: {provider}")
-
-        # Parse JSON response
-        script = self._parse_script_json(script_json, request)
+            script_json, model, tokens = self._generate_provider(
+                provider, self._build_prompt(request), llm_config
+            )
+            script = self._parse_script_json(script_json, request)
 
         generation_time = time.time() - start_time
         logger.info(
@@ -85,6 +72,75 @@ class ScriptGeneratorService:
         )
 
         return script, model, generation_time, tokens
+
+    @staticmethod
+    def _target_scene_count(request: ScriptGenerationRequest) -> int:
+        return request.num_scenes or max(5, int(request.duration_minutes * 60 / 25))
+
+    def _generate_provider(self, provider: str, prompt: str, llm_config: Dict):
+        generators = {
+            'openai': self._generate_openai, 'claude': self._generate_claude,
+            'gemini': self._generate_gemini, 'deepseek': self._generate_deepseek,
+            'kimi': self._generate_kimi, 'qwen': self._generate_qwen,
+        }
+        generator = generators.get(provider)
+        if not generator:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+        return generator(prompt, llm_config)
+
+    def _generate_script_batches(self, request, llm_config, target_scenes):
+        batch_sizes = []
+        remaining = target_scenes
+        while remaining:
+            batch_size = min(12, remaining)
+            if remaining - batch_size and remaining - batch_size < 5:
+                batch_size = remaining
+            batch_sizes.append(batch_size)
+            remaining -= batch_size
+
+        scripts, model, token_count = [], None, 0
+        offset = 0
+        for batch_index, batch_size in enumerate(batch_sizes, start=1):
+            batch_request = request.model_copy(update={
+                'num_scenes': batch_size,
+                'duration_minutes': request.duration_minutes * batch_size / target_scenes,
+                'custom_instructions': (request.custom_instructions or '') + (
+                    f'\nThis is batch {batch_index} of {len(batch_sizes)}, covering scenes '
+                    f'{offset + 1}-{offset + batch_size} of one continuous video. '
+                    'Return exactly this batch of scenes. Only the first batch opens the video; '
+                    'only the final batch concludes it.'
+                ),
+            })
+            content, model, tokens = self._generate_provider(
+                request.llm_provider.value, self._build_prompt(batch_request), llm_config
+            )
+            parsed = self._parse_script_json(content, batch_request)
+            if len(parsed.scenes) < batch_size:
+                raise ValueError(
+                    f'Batch {batch_index} returned {len(parsed.scenes)} scenes; expected {batch_size}.'
+                )
+            for scene in parsed.scenes[:batch_size]:
+                scene.index = offset
+                offset += 1
+            scripts.append(parsed)
+            token_count += tokens or 0
+
+        first = scripts[0]
+        metadata = dict(first.metadata or {})
+        metadata.update({
+            'target_duration_seconds': int(request.duration_minutes * 60),
+            'target_scene_count': target_scenes,
+            'script_language': request.language,
+            'script_llm_provider': request.llm_provider.value,
+            'generation_batches': len(batch_sizes),
+        })
+        return StructuredScript(
+            title=first.title,
+            description=first.description,
+            total_duration_estimate=int(request.duration_minutes * 60),
+            scenes=[scene for script in scripts for scene in script.scenes],
+            metadata=metadata,
+        ), model, token_count
 
     def generate_editorial_json(self, provider: str, prompt: str) -> str:
         """Generate a small JSON editorial artifact with the configured LLM."""
@@ -177,9 +233,7 @@ The current script is below or above the target. Expand or condense every scene 
     def _build_prompt(self, request: ScriptGenerationRequest) -> str:
         """Build LLM prompt for script generation"""
         # Calculate number of scenes if not provided
-        num_scenes = request.num_scenes or max(
-            5, int(request.duration_minutes * 60 / 25)
-        )  # ~25s per scene
+        num_scenes = self._target_scene_count(request)  # ~25s per scene
         target_seconds = int(request.duration_minutes * 60)
         chars_per_second = ScriptParser.chars_per_second_for(request.language)
         narration_budget = int(target_seconds * chars_per_second)
@@ -508,6 +562,7 @@ Output ONLY the JSON, no explanations or markdown formatting.
         metadata.setdefault("script_language", request.language)
         metadata.setdefault("target_duration_seconds", int(request.duration_minutes * 60))
         metadata.setdefault("script_llm_provider", request.llm_provider.value)
+        metadata.setdefault("target_scene_count", self._target_scene_count(request))
         if request.editorial_context:
             generated_editorial = metadata.get("editorial", {}) or {}
             metadata["editorial"] = {

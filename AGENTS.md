@@ -261,3 +261,7 @@ O gerador original foi preservado.
 - O parser normaliza vocabulário comum de transições retornado por LLMs:
   `wipe`/`swipe` para `slide`, `dissolve`/`crossfade` para `fade` e cortes
   diretos para `none`. Transições não reconhecidas continuam sendo rejeitadas.
+- Roteiros cuja meta exige mais de 12 cenas são gerados em blocos de no máximo
+  12 cenas, com duração e orçamento de texto proporcionais. O resultado reúne
+  os blocos em um único roteiro; um bloco que retorne menos cenas que o pedido
+  falha explicitamente, em vez de produzir silenciosamente um vídeo curto.

@@ -137,6 +137,27 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(script.metadata['script_language'], 'en-US')
         self.assertEqual(script.metadata['target_duration_seconds'], 1200)
 
+    def test_longform_script_is_generated_in_bounded_scene_batches(self):
+        from app.models.schema import ScriptGenerationRequest
+        from app.services.script_generator import ScriptGeneratorService
+
+        generator = ScriptGeneratorService()
+        generator.llm_configs = {'openai': {'api_key': 'test', 'enabled': True}}
+        response = json.dumps({
+            'title': 'AI infrastructure', 'description': 'Description', 'total_duration_estimate': 300,
+            'scenes': [dict(index=index, narration='A complete scene narration with enough detail for testing.', image_prompt='Detailed documentary image') for index in range(12)],
+        })
+        with patch.object(generator, '_generate_openai', return_value=(response, 'gpt-4o', 100)) as generate:
+            script, model, _, tokens = generator.generate_script(
+                ScriptGenerationRequest(topic='AI infrastructure', duration_minutes=20, language='en-US')
+            )
+
+        self.assertEqual(generate.call_count, 4)
+        self.assertEqual(len(script.scenes), 48)
+        self.assertEqual(script.metadata['target_scene_count'], 48)
+        self.assertEqual(model, 'gpt-4o')
+        self.assertEqual(tokens, 400)
+
     def test_duration_correction_is_limited_and_preserves_editorial_metadata(self):
         from app.models.schema import ScriptGenerationRequest
         from app.services.script_generator import ScriptGeneratorService
