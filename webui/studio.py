@@ -105,13 +105,14 @@ def _channel_profile_editor():
                 channel_subniche = st.text_input('Recorte', value=profile['subniche'], placeholder='Ex.: decisões que moldaram a internet')
             audience = st.text_input('Público principal', value=profile['audience'])
             promise = st.text_area('Promessa do canal', value=profile['promise'], placeholder='O que a pessoa aprende ou sente ao assistir?')
+            channel_language = st.selectbox('Idioma padrão do canal', ['pt-BR', 'en-US', 'es-ES'], index=['pt-BR', 'en-US', 'es-ES'].index(profile['language'] if profile['language'] in ('pt-BR', 'en-US', 'es-ES') else 'pt-BR'), format_func=lambda value: {'pt-BR': 'Português (Brasil)', 'en-US': 'Inglês (EUA)', 'es-ES': 'Espanhol'}[value])
             tone = st.selectbox('Tom', ['documentary', 'educational', 'entertaining'], index=['documentary', 'educational', 'entertaining'].index(profile['tone'] if profile['tone'] in ('documentary', 'educational', 'entertaining') else 'documentary'), format_func=lambda value: {'documentary': 'Documentário', 'educational': 'Educacional', 'entertaining': 'Entretenimento'}[value])
             pillars = st.text_area('Pilares e séries', value=profile['pillars'], placeholder='Ex.: guerras da tecnologia; infraestruturas invisíveis')
             visual_style = st.text_input('Direção visual', value=profile['visual_style'], placeholder='Ex.: documental cinematográfica, arquivos e infográficos')
             source_policy = st.text_area('Política de fontes', value=profile['source_policy'], placeholder='Ex.: priorizar fontes primárias e indicar incertezas')
             restricted = st.text_input('Assuntos ou abordagens a evitar', value=profile['restricted_topics'])
             if st.form_submit_button('Salvar identidade editorial'):
-                editorial.save_channel_profile({'name': name, 'niche': channel_niche, 'subniche': channel_subniche, 'audience': audience, 'promise': promise, 'tone': tone, 'pillars': pillars, 'visual_style': visual_style, 'source_policy': source_policy, 'restricted_topics': restricted})
+                editorial.save_channel_profile({'name': name, 'niche': channel_niche, 'subniche': channel_subniche, 'audience': audience, 'promise': promise, 'language': channel_language, 'tone': tone, 'pillars': pillars, 'visual_style': visual_style, 'source_policy': source_policy, 'restricted_topics': restricted})
                 st.success('Identidade editorial salva.')
                 profile = editorial.get_channel_profile()
     return profile
@@ -221,7 +222,9 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
             model_notice = model_status_message(provider, settings.get('llm', {}).get(provider, {}).get('model', ''))
             if model_notice:
                 st.warning(model_notice)
-            language = st.selectbox('Idioma da narração', ['pt-BR', 'en-US', 'es-ES'])
+            language_options = ['pt-BR', 'en-US', 'es-ES']
+            default_language = (profile or {}).get('language', 'pt-BR')
+            language = st.selectbox('Idioma da narração', language_options, index=language_options.index(default_language) if default_language in language_options else 0)
             style = st.selectbox('Estilo do roteiro', ['educational', 'documentary', 'entertaining'], format_func=lambda x: {'educational': 'Educacional', 'documentary': 'Documentário', 'entertaining': 'Entretenimento'}[x])
             audience = st.text_input('Público-alvo')
             instructions = st.text_area('Orientações adicionais')

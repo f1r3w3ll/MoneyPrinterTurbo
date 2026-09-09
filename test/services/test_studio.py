@@ -20,8 +20,9 @@ class StudioTests(unittest.TestCase):
             editorial.save_channel_profile({'name': 'Canal Atlas', 'niche': 'História e cultura'})
 
             self.assertEqual(first['name'], 'Fio da Ciência')
+            self.assertEqual(first['language'], 'en-US')
             self.assertEqual(editorial.get_channel_profile()['niche'], 'História e cultura')
-            self.assertEqual(editorial.get_channel_profile('fio-da-ciencia')['niche'], 'Ciência e tecnologia explicadas')
+            self.assertEqual(editorial.get_channel_profile('fio-da-ciencia')['niche'], 'Science and technology explained')
             self.assertEqual(len(editorial.list_channels()), 2)
 
     def test_channel_profile_persists_and_packaging_keeps_the_promise(self):

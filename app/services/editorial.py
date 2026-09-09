@@ -14,22 +14,23 @@ CHANNEL_INDEX_FILE = 'channels.json'
 
 PROFILE_DEFAULTS = {
     'name': '', 'niche': '', 'subniche': '', 'audience': '', 'promise': '',
-    'tone': 'documentary', 'pillars': '', 'visual_style': '', 'source_policy': '',
+    'language': 'pt-BR', 'tone': 'documentary', 'pillars': '', 'visual_style': '', 'source_policy': '',
     'restricted_topics': '',
 }
 
 FIRST_CHANNEL_ID = 'fio-da-ciencia'
 FIRST_CHANNEL_PROFILE = {
     'name': 'Fio da Ciência',
-    'niche': 'Ciência e tecnologia explicadas',
-    'subniche': 'Ideias, infraestruturas e descobertas que transformam o cotidiano',
-    'audience': 'Adultos curiosos de 20 a 45 anos que querem entender o mundo sem simplificações vazias',
-    'promise': 'Explicar com clareza como a ciência e a tecnologia moldam o mundo, da ideia às consequências práticas.',
+    'niche': 'Science and technology explained',
+    'subniche': 'Ideas, infrastructure and discoveries that transform everyday life',
+    'audience': 'Curious adults aged 20–45 who want to understand the world without empty simplification',
+    'promise': 'Explain clearly how science and technology shape the world, from the idea to its practical consequences.',
+    'language': 'en-US',
     'tone': 'documentary',
-    'pillars': 'Tecnologias invisíveis; história das descobertas; grandes sistemas; dilemas e consequências humanas',
-    'visual_style': 'Documental cinematográfico, arquivos, diagramas limpos e comparações visuais que revelam escala e causa',
-    'source_policy': 'Priorizar fontes primárias, instituições científicas, documentação técnica e revisões confiáveis; indicar incertezas e datas.',
-    'restricted_topics': 'Sensacionalismo, promessas de futuro sem evidência, pseudociência, alarmismo e recomendações médicas, financeiras ou de segurança sem fonte qualificada.',
+    'pillars': 'Invisible technologies; history of discoveries; large systems; human dilemmas and consequences',
+    'visual_style': 'Cinematic documentary, archives, clean diagrams and visual comparisons that reveal scale and cause',
+    'source_policy': 'Prioritize primary sources, scientific institutions, technical documentation and reliable reviews; state uncertainty and dates.',
+    'restricted_topics': 'Sensationalism, evidence-free future claims, pseudoscience, alarmism, and medical, financial or safety advice without qualified sources.',
 }
 
 BRIEF_DEFAULTS = {
@@ -163,7 +164,9 @@ def _brief(values, topic=''):
 def brief_prompt(topic, profile):
     """Build a constrained prompt for useful, honest YouTube pre-production."""
     profile = _clean(profile, PROFILE_DEFAULTS)
-    return f"""You are a YouTube editorial strategist. Create a concise, original editorial brief in Brazilian Portuguese for a long-form video.
+    language_names = {'pt-BR': 'Brazilian Portuguese', 'en-US': 'English', 'es-ES': 'Spanish'}
+    language = language_names.get(profile['language'], profile['language'])
+    return f"""You are a YouTube editorial strategist. Create a concise, original editorial brief in {language} for a long-form video.
 
 Topic: {topic}
 Channel profile: {json.dumps(profile, ensure_ascii=False)}

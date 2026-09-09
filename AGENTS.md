@@ -204,10 +204,12 @@ O gerador original foi preservado.
   `storage/studio/channels/<id>.json`. Perfis legados em
   `storage/studio/channel_profile.json` são migrados automaticamente ao
   inicializar a estrutura, sem apagar o arquivo original.
-- O primeiro canal ativo é `Fio da Ciência` (`fio-da-ciencia`), no nicho
-  Ciência e tecnologia explicadas. Seu perfil define documentário claro,
-  fontes qualificadas, explicação de sistemas e consequências práticas, com
-  restrição a sensacionalismo, pseudociência e alegações sem evidência.
+- O primeiro canal ativo é `Fio da Ciência` (`fio-da-ciencia`), com conteúdo
+  em inglês (`en-US`) no nicho *Science and technology explained*. Seu perfil
+  define documentário claro, fontes qualificadas, explicação de sistemas e
+  consequências práticas, com restrição a sensacionalismo, pseudociência e
+  alegações sem evidência. O idioma do canal é o padrão da pauta e da narração,
+  mas pode ser alterado para um vídeo específico.
 - A interface permite criar canais, escolher o ativo e editar sua identidade:
   canal, nicho, recorte, público, promessa, tom, pilares, direção visual,
   política de fontes e restrições. A troca de canal reinicia apenas a pauta em
