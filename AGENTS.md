@@ -309,7 +309,8 @@ O gerador original foi preservado.
 - Erros HTTP do upload, validação e criação do post preservam o campo de
   detalhe devolvido pela WoopSocial (`error_message`, `message` ou `error`),
   em vez de expor somente a URL do endpoint.
-- A resposta atual de `POST /media` contém o identificador em `media.id`.
-  A integração aceita também os formatos legados `id` e `data.id`, mas agora
+- A resposta atual de `POST /media` contém o identificador em `mediaId`.
+  A integração aceita também os formatos legados `id`, `data.id` e
+  `media.id`, mas agora
   interrompe o fluxo antes da validação se nenhum identificador for retornado;
   assim nunca envia `mediaId: null` ao post.

@@ -385,7 +385,7 @@ class StudioTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
-            upload = Mock(); upload.json.return_value = {'media': {'id': 'media-1'}}
+            upload = Mock(); upload.json.return_value = {'mediaId': 'media-1'}
             validation = Mock(); validation.json.return_value = {'isValid': True, 'errors': []}
             posted = Mock(); posted.json.return_value = {'id': 'post-1'}
             with patch('app.services.woopsocial.requests.post', side_effect=[upload, validation, posted]) as request, \

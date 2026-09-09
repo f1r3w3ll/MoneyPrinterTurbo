@@ -75,7 +75,7 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
         upload = requests.post(f'{BASE_URL}/media', headers=_headers(), params={'projectId': project_id}, files={'file': (path.name, file, 'video/mp4')}, timeout=600)
     _ensure_success(upload, 'o upload do vídeo')
     upload_result = upload.json()
-    media_id = (upload_result.get('id') or (upload_result.get('data') or {}).get('id')
+    media_id = (upload_result.get('mediaId') or upload_result.get('id') or (upload_result.get('data') or {}).get('id')
                 or (upload_result.get('media') or {}).get('id'))
     if not media_id:
         raise ValueError('A WoopSocial não devolveu o identificador da mídia enviada.')
