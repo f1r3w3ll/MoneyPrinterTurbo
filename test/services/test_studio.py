@@ -11,6 +11,19 @@ from test.services.test_longform_pipeline import example_script
 
 
 class StudioTests(unittest.TestCase):
+    def test_channels_keep_independent_profiles_and_active_channel(self):
+        from app.services import editorial
+        with tempfile.TemporaryDirectory() as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
+            first = editorial.get_channel_profile()
+            second = editorial.create_channel({'name': 'Canal Atlas', 'niche': 'História'})
+            editorial.set_active_channel(second['id'])
+            editorial.save_channel_profile({'name': 'Canal Atlas', 'niche': 'História e cultura'})
+
+            self.assertEqual(first['name'], 'Fio da Ciência')
+            self.assertEqual(editorial.get_channel_profile()['niche'], 'História e cultura')
+            self.assertEqual(editorial.get_channel_profile('fio-da-ciencia')['niche'], 'Ciência e tecnologia explicadas')
+            self.assertEqual(len(editorial.list_channels()), 2)
+
     def test_channel_profile_persists_and_packaging_keeps_the_promise(self):
         from app.services import editorial
         with tempfile.TemporaryDirectory() as tmp, patch.object(editorial, 'ROOT', Path(tmp)):

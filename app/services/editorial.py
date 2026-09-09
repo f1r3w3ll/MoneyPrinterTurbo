@@ -1,17 +1,35 @@
 """Channel identity, editorial briefs, and promise-aligned packaging helpers."""
 import json
 from pathlib import Path
+import re
+import unicodedata
 
 from app.config import config
 from app.services.studio_storage import write_json
 
 ROOT = Path(config.root_dir) / 'storage' / 'studio'
 PROFILE_FILE = 'channel_profile.json'
+CHANNELS_DIR = 'channels'
+CHANNEL_INDEX_FILE = 'channels.json'
 
 PROFILE_DEFAULTS = {
     'name': '', 'niche': '', 'subniche': '', 'audience': '', 'promise': '',
     'tone': 'documentary', 'pillars': '', 'visual_style': '', 'source_policy': '',
     'restricted_topics': '',
+}
+
+FIRST_CHANNEL_ID = 'fio-da-ciencia'
+FIRST_CHANNEL_PROFILE = {
+    'name': 'Fio da Ciência',
+    'niche': 'Ciência e tecnologia explicadas',
+    'subniche': 'Ideias, infraestruturas e descobertas que transformam o cotidiano',
+    'audience': 'Adultos curiosos de 20 a 45 anos que querem entender o mundo sem simplificações vazias',
+    'promise': 'Explicar com clareza como a ciência e a tecnologia moldam o mundo, da ideia às consequências práticas.',
+    'tone': 'documentary',
+    'pillars': 'Tecnologias invisíveis; história das descobertas; grandes sistemas; dilemas e consequências humanas',
+    'visual_style': 'Documental cinematográfico, arquivos, diagramas limpos e comparações visuais que revelam escala e causa',
+    'source_policy': 'Priorizar fontes primárias, instituições científicas, documentação técnica e revisões confiáveis; indicar incertezas e datas.',
+    'restricted_topics': 'Sensacionalismo, promessas de futuro sem evidência, pseudociência, alarmismo e recomendações médicas, financeiras ou de segurança sem fonte qualificada.',
 }
 
 BRIEF_DEFAULTS = {
@@ -25,25 +43,112 @@ def _clean(values, defaults):
     return {key: str(values.get(key, default)).strip() for key, default in defaults.items()}
 
 
-def _profile_path():
+def _legacy_profile_path():
     return ROOT / PROFILE_FILE
 
 
-def get_channel_profile():
-    path = _profile_path()
-    if not path.is_file():
-        return dict(PROFILE_DEFAULTS)
+def _index_path():
+    return ROOT / CHANNEL_INDEX_FILE
+
+
+def _channel_path(channel_id):
+    return ROOT / CHANNELS_DIR / f'{channel_id}.json'
+
+
+def _read_json(path, fallback):
     try:
-        import json
         with path.open(encoding='utf-8') as file:
-            return _clean(json.load(file), PROFILE_DEFAULTS)
+            return json.load(file)
     except (OSError, ValueError):
-        return dict(PROFILE_DEFAULTS)
+        return fallback
+
+
+def _channel_id(name):
+    normalized = unicodedata.normalize('NFKD', str(name or '')).encode('ascii', 'ignore').decode().lower()
+    value = re.sub(r'[^a-z0-9]+', '-', normalized).strip('-')
+    return value or 'canal'
+
+
+def _ensure_channels():
+    index_path = _index_path()
+    index = _read_json(index_path, None)
+    if isinstance(index, dict) and index.get('channels'):
+        return index
+
+    legacy = _read_json(_legacy_profile_path(), {})
+    legacy_profile = _clean(legacy, PROFILE_DEFAULTS)
+    if isinstance(legacy, dict) and any(str(value).strip() for key, value in legacy.items() if key != 'tone'):
+        channel_id = _channel_id(legacy_profile['name'])
+        profile = legacy_profile
+    else:
+        channel_id = FIRST_CHANNEL_ID
+        profile = _clean(FIRST_CHANNEL_PROFILE, PROFILE_DEFAULTS)
+    write_json(_channel_path(channel_id), profile)
+    index = {
+        'active_channel_id': channel_id,
+        'channels': [{'id': channel_id, 'name': profile['name'], 'niche': profile['niche']}],
+    }
+    write_json(index_path, index)
+    return index
+
+
+def list_channels():
+    """Return the available channels without their full editorial data."""
+    return list(_ensure_channels()['channels'])
+
+
+def active_channel_id():
+    return _ensure_channels()['active_channel_id']
+
+
+def set_active_channel(channel_id):
+    index = _ensure_channels()
+    channel_id = str(channel_id)
+    if channel_id not in {channel['id'] for channel in index['channels']}:
+        raise ValueError('Canal não encontrado.')
+    index['active_channel_id'] = channel_id
+    write_json(_index_path(), index)
+    return channel_id
+
+
+def get_channel_profile(channel_id=None):
+    index = _ensure_channels()
+    channel_id = str(channel_id or index['active_channel_id'])
+    if channel_id not in {channel['id'] for channel in index['channels']}:
+        raise ValueError('Canal não encontrado.')
+    return _clean(_read_json(_channel_path(channel_id), {}), PROFILE_DEFAULTS)
+
+
+def create_channel(values):
+    """Create an independent, editable channel profile and make it active."""
+    index = _ensure_channels()
+    profile = _clean(values, PROFILE_DEFAULTS)
+    if not profile['name']:
+        raise ValueError('Informe o nome do canal.')
+    candidate = _channel_id(profile['name'])
+    known = {channel['id'] for channel in index['channels']}
+    channel_id = candidate
+    suffix = 2
+    while channel_id in known:
+        channel_id = f'{candidate}-{suffix}'
+        suffix += 1
+    write_json(_channel_path(channel_id), profile)
+    index['channels'].append({'id': channel_id, 'name': profile['name'], 'niche': profile['niche']})
+    index['active_channel_id'] = channel_id
+    write_json(_index_path(), index)
+    return {'id': channel_id, **profile}
 
 
 def save_channel_profile(values):
     profile = _clean(values, PROFILE_DEFAULTS)
-    write_json(_profile_path(), profile)
+    index = _ensure_channels()
+    channel_id = index['active_channel_id']
+    write_json(_channel_path(channel_id), profile)
+    for channel in index['channels']:
+        if channel['id'] == channel_id:
+            channel.update(name=profile['name'], niche=profile['niche'])
+            break
+    write_json(_index_path(), index)
     return profile
 
 

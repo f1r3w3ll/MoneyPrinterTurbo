@@ -199,10 +199,19 @@ O gerador original foi preservado.
 - Antes desta evolução foi criada a tag local
   `backup/editorial-foundation-before-2026-09-09`, que preserva o commit
   `8f13746` como ponto de retorno do Estúdio anterior.
-- O Estúdio agora guarda uma identidade editorial local em
-  `storage/studio/channel_profile.json`: canal, nicho, recorte, público,
-  promessa, tom, pilares, direção visual, política de fontes e restrições.
-  Esse arquivo é criado somente quando o usuário salva a identidade.
+- O Estúdio suporta múltiplos canais. O índice e o canal ativo ficam em
+  `storage/studio/channels.json`; cada perfil editorial fica em
+  `storage/studio/channels/<id>.json`. Perfis legados em
+  `storage/studio/channel_profile.json` são migrados automaticamente ao
+  inicializar a estrutura, sem apagar o arquivo original.
+- O primeiro canal ativo é `Fio da Ciência` (`fio-da-ciencia`), no nicho
+  Ciência e tecnologia explicadas. Seu perfil define documentário claro,
+  fontes qualificadas, explicação de sistemas e consequências práticas, com
+  restrição a sensacionalismo, pseudociência e alegações sem evidência.
+- A interface permite criar canais, escolher o ativo e editar sua identidade:
+  canal, nicho, recorte, público, promessa, tom, pilares, direção visual,
+  política de fontes e restrições. A troca de canal reinicia apenas a pauta em
+  edição; roteiros e produções existentes mantêm seus metadados.
 - A criação começa com pauta (tema, pergunta, tese, promessa, objetivo e
   referências) e apresenta três opções editáveis de título, texto e conceito
   visual de thumbnail. A opção escolhida é vinculada ao roteiro para que a

@@ -64,9 +64,38 @@ def _load(script, draft_id=None):
 
 
 def _channel_profile_editor():
+    channels = editorial.list_channels()
+    active_id = editorial.active_channel_id()
+    with st.expander('Canais e linha editorial', expanded=True):
+        selected_id = st.selectbox(
+            'Canal ativo',
+            [channel['id'] for channel in channels],
+            index=[channel['id'] for channel in channels].index(active_id),
+            format_func=lambda channel_id: next(channel['name'] for channel in channels if channel['id'] == channel_id),
+            key='active_editorial_channel',
+        )
+        if selected_id != active_id:
+            editorial.set_active_channel(selected_id)
+            for key in ('studio_brief', 'generated_studio_brief', 'brief_topic', 'brief_question', 'brief_thesis', 'brief_promise', 'brief_goal', 'brief_sources'):
+                st.session_state.pop(key, None)
+            st.rerun()
+        with st.form('new_editorial_channel'):
+            new_name, new_niche = st.columns(2)
+            with new_name:
+                channel_name = st.text_input('Nome do novo canal')
+            with new_niche:
+                channel_niche = st.text_input('Nicho do novo canal')
+            if st.form_submit_button('Criar canal'):
+                try:
+                    editorial.create_channel({'name': channel_name, 'niche': channel_niche})
+                    for key in ('studio_brief', 'generated_studio_brief', 'brief_topic', 'brief_question', 'brief_thesis', 'brief_promise', 'brief_goal', 'brief_sources'):
+                        st.session_state.pop(key, None)
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
     profile = editorial.get_channel_profile()
     with st.expander('1 · Identidade editorial do canal', expanded=True):
-        st.caption('Defina a linha editorial uma vez. Ela orienta pauta, embalagem e roteiro, sem substituir sua revisão final.')
+        st.caption('Edite a linha editorial do canal ativo. Ela orienta pauta, embalagem e roteiro, sem substituir sua revisão final.')
         with st.form('channel_profile'):
             name = st.text_input('Nome do canal', value=profile['name'])
             niche, subniche = st.columns(2)
