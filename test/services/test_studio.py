@@ -386,14 +386,17 @@ class StudioTests(unittest.TestCase):
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
             upload = Mock(); upload.json.return_value = {'id': 'media-1'}
+            validation = Mock(); validation.json.return_value = {'isValid': True, 'errors': []}
             posted = Mock(); posted.json.return_value = {'id': 'post-1'}
-            with patch('app.services.woopsocial.requests.post', side_effect=[upload, posted]) as request, \
+            with patch('app.services.woopsocial.requests.post', side_effect=[upload, validation, posted]) as request, \
                  patch('app.services.woopsocial._headers', return_value={'Authorization': 'Bearer test'}):
                 self.assertEqual(woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private'), {'id': 'post-1'})
             self.assertEqual(request.call_args_list[0].kwargs['params'], {'projectId': 'project-1'})
             payload = request.call_args_list[1].kwargs['json']
             self.assertEqual(payload['schedule'], {'type': 'PUBLISH_NOW'})
             self.assertEqual(payload['socialAccounts'][0], {'platform': 'YOUTUBE', 'socialAccountId': 'account-1', 'title': 'Title', 'privacy': 'private'})
+            self.assertEqual(request.call_args_list[1].args[0], f'{woopsocial.BASE_URL}/posts/validate')
+            self.assertEqual(request.call_args_list[2].args[0], f'{woopsocial.BASE_URL}/posts')
 
     def test_woopsocial_rejects_an_overlong_youtube_title_before_upload(self):
         from app.services import woopsocial
@@ -411,11 +414,25 @@ class StudioTests(unittest.TestCase):
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
             upload = Mock(); upload.json.return_value = {'id': 'media-1'}
+            validation = Mock(); validation.json.return_value = {'isValid': True, 'errors': []}
             posted = Mock(); posted.json.return_value = {'id': 'post-1'}
-            with patch('app.services.woopsocial.requests.post', side_effect=[upload, posted]) as request, \
+            with patch('app.services.woopsocial.requests.post', side_effect=[upload, validation, posted]) as request, \
                  patch('app.services.woopsocial._headers', return_value={}):
                 woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private', tags=['science', 'technology'])
             self.assertEqual(request.call_args_list[1].kwargs['json']['socialAccounts'][0]['tags'], ['science', 'technology'])
+
+    def test_woopsocial_reports_validation_errors_without_creating_post(self):
+        from app.services import woopsocial
+        with tempfile.TemporaryDirectory() as tmp:
+            video = Path(tmp) / 'video.mp4'
+            video.write_bytes(b'video')
+            upload = Mock(); upload.json.return_value = {'id': 'media-1'}
+            validation = Mock(); validation.json.return_value = {'isValid': False, 'errors': [{'message': 'Invalid YouTube setting'}]}
+            with patch('app.services.woopsocial.requests.post', side_effect=[upload, validation]) as request, \
+                 patch('app.services.woopsocial._headers', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'Invalid YouTube setting'):
+                    woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private')
+            self.assertEqual(request.call_count, 2)
 
     def test_queued_production_cannot_be_resumed_twice_and_survives_restart(self):
         from app.services import studio

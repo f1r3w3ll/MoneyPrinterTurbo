@@ -65,6 +65,14 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
         youtube_target['tags'] = [str(tag).strip() for tag in tags if str(tag).strip()]
     body = {'content': [{'text': description, 'media': [{'type': 'MEDIA_LIBRARY', 'mediaId': media_id}]}], 'schedule': schedule,
             'socialAccounts': [youtube_target]}
-    response = requests.post(f'{BASE_URL}/posts', headers={**_headers(), 'Content-Type': 'application/json'}, json=body, timeout=60)
+    headers = {**_headers(), 'Content-Type': 'application/json'}
+    validation = requests.post(f'{BASE_URL}/posts/validate', headers=headers, json=body, timeout=60)
+    validation.raise_for_status()
+    validation_result = validation.json()
+    if not validation_result.get('isValid', False):
+        errors = validation_result.get('errors') or []
+        messages = [str(item.get('message') or item) for item in errors if item]
+        raise ValueError('WoopSocial rejeitou a publicação: ' + ('; '.join(messages) or 'payload inválido.'))
+    response = requests.post(f'{BASE_URL}/posts', headers=headers, json=body, timeout=60)
     response.raise_for_status()
     return response.json()

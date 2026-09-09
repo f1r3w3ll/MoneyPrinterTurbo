@@ -303,3 +303,6 @@ O gerador original foi preservado.
   dados estruturados e o Estúdio renderiza os blocos nessa ordem. As tags de
   busca ficam em um campo separado, editável, limitado a 15 itens e são
   enviadas no campo próprio do YouTube pela WoopSocial.
+- Antes de criar o post, a integração chama `POST /posts/validate`. Uma
+  rejeição é exibida com as mensagens da WoopSocial e não cria o post; isso
+  substitui os erros HTTP 400 genéricos por orientação acionável.
