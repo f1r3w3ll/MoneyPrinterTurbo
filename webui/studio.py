@@ -63,6 +63,23 @@ def _load(script, draft_id=None):
     st.session_state.output_thumbnail_text = package.get('thumbnail_text') or script.get('title', '')
 
 
+def _narration_duration_estimate(script):
+    """Estimate narration time before costly media generation begins."""
+    parsed = ScriptParser().parse_json_script(script)
+    metadata = parsed.metadata or {}
+    language = metadata.get('script_language')
+    estimated_seconds = ScriptParser().estimate_total_duration(parsed, language=language)
+    target_seconds = metadata.get('target_duration_seconds')
+    return estimated_seconds, target_seconds
+
+
+def _duration_is_on_target(estimated_seconds, target_seconds):
+    """Allow a small planning margin; final audio is still measured later."""
+    if not target_seconds:
+        return True
+    return target_seconds * 0.8 <= estimated_seconds <= target_seconds * 1.2
+
+
 def _channel_profile_editor():
     channels = editorial.list_channels()
     active_id = editorial.active_channel_id()
@@ -137,15 +154,15 @@ def _brief_and_packaging(profile):
         st.session_state.brief_sources = generated['sources']
     prior = st.session_state.get('studio_brief', {})
     with st.expander('Definir pauta', expanded=True):
-        topic = st.text_input('Tema do vídeo', value=prior.get('topic', ''), key='brief_topic')
-        question = st.text_input('Pergunta central', value=prior.get('central_question', ''), key='brief_question')
-        thesis = st.text_area('Tese ou descoberta que o vídeo sustenta', value=prior.get('thesis', ''), key='brief_thesis')
-        promise = st.text_area('Promessa específica deste vídeo', value=prior.get('promise', profile.get('promise', '')), key='brief_promise')
-        goal = st.selectbox('Objetivo', ['Descoberta', 'Busca', 'Retorno ao canal'], key='brief_goal')
-        sources = st.text_area('Fontes, links ou notas para checagem', value=prior.get('sources', ''), key='brief_sources', placeholder='Registre hipóteses e referências antes de tratá-las como fatos.')
-        provider = st.selectbox('IA para gerar a pauta', ['openai', 'claude', 'gemini', 'deepseek', 'kimi', 'qwen'], key='brief_provider')
-        st.caption('A IA propõe uma pauta inicial com base no tema e na identidade editorial. Revise os fatos, fontes e a promessa antes de gerar o roteiro.')
-        if st.button('Gerar pauta com IA', key='generate_brief', type='secondary'):
+        topic_column, provider_column, action_column = st.columns([3, 1.25, 1.45])
+        with topic_column:
+            topic = st.text_input('Tema do vídeo', value=prior.get('topic', ''), key='brief_topic')
+        with provider_column:
+            provider = st.selectbox('IA para pauta', ['openai', 'claude', 'gemini', 'deepseek', 'kimi', 'qwen'], key='brief_provider')
+        with action_column:
+            st.caption(' ')
+            generate_brief = st.button('Gerar pauta com IA', key='generate_brief', type='secondary', use_container_width=True)
+        if generate_brief:
             if not topic.strip():
                 st.error('Informe o tema do vídeo antes de gerar a pauta.')
             else:
@@ -156,6 +173,12 @@ def _brief_and_packaging(profile):
                         st.rerun()
                     except Exception as exc:
                         st.error(redact(explain_generation_error(provider, exc)))
+        question = st.text_input('Pergunta central', value=prior.get('central_question', ''), key='brief_question')
+        thesis = st.text_area('Tese ou descoberta que o vídeo sustenta', value=prior.get('thesis', ''), key='brief_thesis')
+        promise = st.text_area('Promessa específica deste vídeo', value=prior.get('promise', profile.get('promise', '')), key='brief_promise')
+        goal = st.selectbox('Objetivo', ['Descoberta', 'Busca', 'Retorno ao canal'], key='brief_goal')
+        sources = st.text_area('Fontes, links ou notas para checagem', value=prior.get('sources', ''), key='brief_sources', placeholder='Registre hipóteses e referências antes de tratá-las como fatos.')
+        st.caption('A IA propõe uma pauta inicial com base no tema e na identidade editorial. Revise os fatos, fontes e a promessa antes de gerar o roteiro.')
         brief = {'topic': topic.strip(), 'central_question': question.strip(), 'thesis': thesis.strip(), 'promise': promise.strip(), 'goal': goal, 'sources': sources.strip()}
         st.session_state.studio_brief = brief
 
@@ -250,7 +273,14 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
                             data = script.model_dump()
                             if selected_package:
                                 data['title'] = selected_package['title'] or data['title']
+                            estimated_seconds, target_seconds = _narration_duration_estimate(data)
                             _load(data)
+                            if not _duration_is_on_target(estimated_seconds, target_seconds):
+                                st.warning(
+                                    f'A narração entregue pela IA estima {estimated_seconds / 60:.1f} minutos, '
+                                    f'mas a meta é {target_seconds / 60:.0f} minutos. Revise ou gere novamente '
+                                    'antes de iniciar a produção.'
+                                )
                         except Exception as exc:
                             st.error(redact(explain_generation_error(provider, exc)))
     left, right = st.columns(2)
@@ -281,6 +311,14 @@ def _editor(backend):
     revision = st.session_state.studio_revision
     st.subheader('4 · Revise as cenas')
     st.caption('Salve o roteiro para aplicar as alterações antes de exportar ou gerar o vídeo. A duração final depende da narração.')
+    estimated_seconds, target_seconds = _narration_duration_estimate(script)
+    duration_label = f'Narração estimada: {estimated_seconds / 60:.1f} minutos'
+    if target_seconds:
+        duration_label += f' · Meta da geração: {target_seconds / 60:.0f} minutos'
+    if _duration_is_on_target(estimated_seconds, target_seconds):
+        st.info(duration_label)
+    else:
+        st.warning(duration_label + '. Ajuste a narração antes de produzir o vídeo.')
     editorial_data = (script.get('metadata') or {}).get('editorial', {})
     if editorial_data:
         roles = [scene.get('narrative_role') for scene in script.get('scenes', []) if scene.get('narrative_role')]
@@ -367,6 +405,13 @@ def _produce(backend, settings, script):
     st.caption('A produção inclui narração, imagens, legendas, vídeo e thumbnail. Imagens e vozes premium podem gerar custos nas APIs.')
     if st.button('Gerar vídeo completo', key='produce', type='primary', disabled=script is None):
         parsed = ScriptParser().parse_json_script(script)
+        estimated_seconds, target_seconds = _narration_duration_estimate(script)
+        if not _duration_is_on_target(estimated_seconds, target_seconds):
+            st.error(
+                f'A narração atual estima {estimated_seconds / 60:.1f} minutos, fora da meta de '
+                f'{target_seconds / 60:.0f} minutos. A produção não foi iniciada para evitar custos com um vídeo na duração errada.'
+            )
+            return
         params = LongFormVideoParams(video_subject=parsed.title, structured_script=parsed, use_structured_script=True, video_aspect=aspect, image_provider=image_provider, image_quality=image_quality, image_size=image_size, voice_name=voice, premium_tts_provider='elevenlabs' if voice.startswith('elevenlabs:') else None, font_name=font, font_size=font_size, subtitle_position=subtitle_position, text_fore_color=text_fore_color, stroke_color=stroke_color, stroke_width=stroke_width, text_background_color=text_background_color, bgm_type='', subtitle_enabled=subtitles, thumbnail_text=thumbnail_text, thumbnail_style=thumbnail_style)
         errors = backend.validate_settings(params)
         if errors:

@@ -80,6 +80,18 @@ class StudioTests(unittest.TestCase):
         self.assertIn('AI still affects you', options[2]['title'])
         self.assertIn('Visual contrast', options[0]['visual_concept'])
 
+    def test_packaging_titles_keep_a_readable_youtube_length(self):
+        from app.services import editorial
+        options = editorial.packaging_options({
+            'topic': 'The hidden infrastructure behind artificial intelligence and the data center boom reshaping American communities',
+            'central_question': 'How is the hidden infrastructure behind artificial intelligence and the data center boom reshaping American communities?',
+            'thesis': 'AI depends on concentrated industrial infrastructure.',
+            'promise': 'Understand the systems behind every AI prompt.',
+        }, language='en-US')
+
+        self.assertTrue(all(len(option['title']) <= 70 for option in options))
+        self.assertTrue(all(not option['title'].endswith(' ') for option in options))
+
     def test_editorial_context_is_present_in_script_prompt_and_metadata(self):
         from app.models.schema import ScriptGenerationRequest
         from app.services.script_generator import ScriptGeneratorService
@@ -103,6 +115,27 @@ class StudioTests(unittest.TestCase):
         self.assertIn('Como a guerra dos navegadores mudou a internet', prompt)
         self.assertEqual(script.metadata['editorial']['brief']['promise'], 'Entender por que essa batalha ainda afeta você.')
         self.assertEqual(script.metadata['editorial']['hook'], 'Uma disputa aparentemente pequena mudou a web.')
+
+    def test_script_generation_turns_duration_into_narration_budget(self):
+        from app.models.schema import ScriptGenerationRequest
+        from app.services.script_generator import ScriptGeneratorService
+
+        request = ScriptGenerationRequest(
+            topic='Hidden infrastructure behind AI',
+            duration_minutes=20,
+            language='en-US',
+        )
+        generator = ScriptGeneratorService()
+        prompt = generator._build_prompt(request)
+        script = generator._parse_script_json(json.dumps({
+            'title': 'Title', 'description': '', 'total_duration_estimate': 1200,
+            'scenes': [dict(index=index, narration='A complete narration for this scene.', image_prompt='Detailed documentary image') for index in range(5)],
+        }), request)
+
+        self.assertIn('Narration budget', prompt)
+        self.assertIn('15,600', prompt)
+        self.assertEqual(script.metadata['script_language'], 'en-US')
+        self.assertEqual(script.metadata['target_duration_seconds'], 1200)
 
     def test_production_identifier_uses_a_readable_title_slug(self):
         from app.services.studio import production_identifier

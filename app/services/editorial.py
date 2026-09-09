@@ -220,38 +220,50 @@ def packaging_options(brief, language='pt-BR'):
     question = str(brief.get('central_question') or f'Por que {topic} importa?').strip()
     thesis = str(brief.get('thesis') or topic).strip()
     promise = str(brief.get('promise') or question).strip()
+    title_topic = _shorten_text(topic, 44)
+    title_question = _shorten_text(question, 70)
+    thumbnail_topic = _shorten_text(topic, 38)
     if language == 'en-US':
         return [
-            {'title': question, 'thumbnail_text': topic[:38],
+            {'title': title_question, 'thumbnail_text': thumbnail_topic,
              'visual_concept': f'Visual contrast that reveals: {thesis}', 'promise': promise,
              'angle': 'Central question'},
-            {'title': f'What really happened in {topic}', 'thumbnail_text': 'WHAT CHANGED?',
+            {'title': f'What really happened in {title_topic}', 'thumbnail_text': 'WHAT CHANGED?',
              'visual_concept': f'Before-and-after evidence for the thesis: {thesis}', 'promise': promise,
              'angle': 'Reveal'},
-            {'title': f'How {topic} still affects you', 'thumbnail_text': 'STILL MATTERS',
+            {'title': f'How {title_topic} still affects you', 'thumbnail_text': 'STILL MATTERS',
              'visual_concept': f'Connect {topic} to a present-day consequence', 'promise': promise,
              'angle': 'Present consequence'},
         ]
     if language == 'es-ES':
         return [
-            {'title': question, 'thumbnail_text': topic[:38],
+            {'title': title_question, 'thumbnail_text': thumbnail_topic,
              'visual_concept': f'Contraste visual que revela: {thesis}', 'promise': promise,
              'angle': 'Pregunta central'},
-            {'title': f'Lo que realmente ocurrió en {topic}', 'thumbnail_text': '¿QUÉ CAMBIÓ?',
+            {'title': f'Lo que realmente ocurrió en {_shorten_text(topic, 40)}', 'thumbnail_text': '¿QUÉ CAMBIÓ?',
              'visual_concept': f'Antes y después que respalda la tesis: {thesis}', 'promise': promise,
              'angle': 'Revelación'},
-            {'title': f'Cómo {topic} todavía te afecta', 'thumbnail_text': 'AÚN IMPORTA',
+            {'title': f'Cómo {_shorten_text(topic, 43)} todavía te afecta', 'thumbnail_text': 'AÚN IMPORTA',
              'visual_concept': f'Conexión entre {topic} y una consecuencia actual', 'promise': promise,
              'angle': 'Consecuencia actual'},
         ]
     return [
-        {'title': question, 'thumbnail_text': topic[:38],
+        {'title': title_question, 'thumbnail_text': thumbnail_topic,
          'visual_concept': f'Contraste visual que revela: {thesis}', 'promise': promise,
          'angle': 'Pergunta central'},
-        {'title': f'O que realmente aconteceu em {topic}', 'thumbnail_text': 'O QUE MUDOU?',
+        {'title': f'O que realmente aconteceu em {_shorten_text(topic, 42)}', 'thumbnail_text': 'O QUE MUDOU?',
          'visual_concept': f'Antes e depois que sustenta a tese: {thesis}', 'promise': promise,
          'angle': 'Revelação'},
-        {'title': f'Como {topic} ainda afeta você', 'thumbnail_text': 'AINDA IMPORTA',
+        {'title': f'Como {_shorten_text(topic, 45)} ainda afeta você', 'thumbnail_text': 'AINDA IMPORTA',
          'visual_concept': f'Conexão entre {topic} e uma consequência atual', 'promise': promise,
          'angle': 'Consequência atual'},
     ]
+
+
+def _shorten_text(value, limit):
+    """Trim a proposed title at a word boundary while keeping it editable."""
+    value = str(value or '').strip()
+    if len(value) <= limit:
+        return value
+    shortened = value[:limit + 1].rsplit(' ', 1)[0].rstrip(' ,:;-')
+    return shortened or value[:limit].rstrip()

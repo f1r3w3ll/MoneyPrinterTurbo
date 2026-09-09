@@ -231,3 +231,19 @@ O gerador original foi preservado.
   A resposta é apenas uma proposta editável: a interface orienta revisar fatos,
   fontes e promessa antes de gerar roteiro. Erro de JSON do provider não altera
   os campos da pauta.
+
+## Duração e embalagem — 09/09/2026
+
+- O campo de tema, o seletor de IA e o botão `Gerar pauta com IA` ficam na
+  mesma linha da pauta, para iniciar o fluxo a partir do único dado necessário.
+- A duração escolhida para um roteiro gerado por IA agora produz um orçamento
+  de narração no prompt: taxa estimada por idioma, total de caracteres e faixa
+  de caracteres por cena. O roteiro registra `script_language` e
+  `target_duration_seconds` em seus metadados.
+- Antes da produção, o Estúdio estima a duração a partir da narração e compara
+  com a meta do roteiro gerado, com margem de 20%. Se estiver fora da faixa,
+  avisa durante a revisão e não inicia voz, imagens ou vídeo. A duração do
+  áudio produzido ainda é a medida definitiva.
+- Títulos automáticos de embalagem são encurtados por palavra para até 70
+  caracteres, evitando que temas longos sejam concatenados em títulos pouco
+  legíveis. As sugestões continuam editáveis pelo usuário.

@@ -16,6 +16,7 @@ from app.models.schema import (
     LLMProvider,
 )
 from app.config import config
+from app.services.script_parser import ScriptParser
 
 
 class ScriptGeneratorService:
@@ -114,15 +115,23 @@ class ScriptGeneratorService:
         num_scenes = request.num_scenes or max(
             5, int(request.duration_minutes * 60 / 25)
         )  # ~25s per scene
+        target_seconds = int(request.duration_minutes * 60)
+        chars_per_second = ScriptParser.chars_per_second_for(request.language)
+        narration_budget = int(target_seconds * chars_per_second)
+        narration_per_scene = int(narration_budget / num_scenes)
+        narration_minimum = int(narration_per_scene * 0.8)
+        narration_maximum = int(narration_per_scene * 1.2)
 
         prompt = f"""You are a professional video script writer. Generate a structured script for a long-form YouTube video.
 
 **Requirements:**
 - Topic: {request.topic}
-- Duration: {request.duration_minutes} minutes ({int(request.duration_minutes * 60)} seconds)
+- Duration: {request.duration_minutes} minutes ({target_seconds} seconds)
 - Number of scenes: {num_scenes}
 - Language: {request.language}
 - Style: {request.style}
+- Narration budget: about {narration_budget:,} characters in total. This is required so the generated audio reaches the requested duration.
+- Per-scene narration: aim for {narration_per_scene:,} characters; keep every scene between {narration_minimum:,} and {narration_maximum:,} characters unless a short transition is essential.
 """
 
         if request.target_audience:
@@ -150,11 +159,11 @@ of a claim that you cannot support.
 {{
   "title": "Engaging video title",
   "description": "Brief video description (2-3 sentences)",
-  "total_duration_estimate": {int(request.duration_minutes * 60)},
+  "total_duration_estimate": {target_seconds},
   "scenes": [
     {{
       "index": 0,
-      "narration": "Detailed narration text in {request.language} (minimum 50 characters, engaging and informative)",
+      "narration": "Detailed narration text in {request.language} (about {narration_per_scene:,} characters, engaging and informative)",
       "image_prompt": "Detailed English prompt for AI image generation (describe visual scene, style, mood)",
       "duration_seconds": 25,
       "transition": "fade",
@@ -176,7 +185,7 @@ of a claim that you cannot support.
 }}
 
 **Scene Guidelines:**
-1. Each narration should be 50-300 characters for natural speech
+1. The combined narration must stay close to the narration budget. Each scene should use {narration_minimum:,}-{narration_maximum:,} characters; do not output short placeholder scenes.
 2. Image prompts in English, detailed and visual (e.g., "cinematic landscape with mountains at sunset, dramatic lighting, 4k quality")
 3. Narration in {request.language}, conversational and engaging
 4. Duration per scene: 20-30 seconds
@@ -427,6 +436,8 @@ Output ONLY the JSON, no explanations or markdown formatting.
             scenes.append(scene)
 
         metadata = data.get("metadata", {}) or {}
+        metadata.setdefault("script_language", request.language)
+        metadata.setdefault("target_duration_seconds", int(request.duration_minutes * 60))
         if request.editorial_context:
             generated_editorial = metadata.get("editorial", {}) or {}
             metadata["editorial"] = {

@@ -15,6 +15,20 @@ from app.models.schema import SceneInfo, StructuredScript
 class ScriptParser:
     """Parser and validator for structured video scripts"""
 
+    # These are planning estimates, not a replacement for measuring the final
+    # audio. They keep the writing brief close to the pace of the selected
+    # narration language before image and TTS costs are incurred.
+    NARRATION_CHARS_PER_SECOND = {
+        "pt-BR": 14.0,
+        "en-US": 13.0,
+        "es-ES": 13.5,
+    }
+
+    @classmethod
+    def chars_per_second_for(cls, language: str | None) -> float:
+        """Return the planning narration rate for a supported language."""
+        return cls.NARRATION_CHARS_PER_SECOND.get(language or "", 14.0)
+
     def parse_json_script(
         self, json_data: Union[str, dict]
     ) -> StructuredScript:
@@ -183,18 +197,24 @@ class ScriptParser:
         return True
 
     def estimate_total_duration(
-        self, script: StructuredScript, chars_per_second: float = 15.0
+        self,
+        script: StructuredScript,
+        chars_per_second: float | None = None,
+        language: str | None = None,
     ) -> float:
         """
         Estimate total video duration based on narration length
 
         Args:
             script: StructuredScript object
-            chars_per_second: Average TTS speed (characters per second)
+            chars_per_second: Average TTS speed (characters per second).
+                When omitted, it is selected from ``language``.
+            language: Narration language used for the planning estimate.
 
         Returns:
             Estimated duration in seconds
         """
+        chars_per_second = chars_per_second or self.chars_per_second_for(language)
         total_chars = sum(len(scene.narration) for scene in script.scenes)
         estimated_duration = total_chars / chars_per_second
 
