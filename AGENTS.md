@@ -287,3 +287,7 @@ O gerador original foi preservado.
   apenas esse texto, sem expor JSON ao usuário.
 - O cliente WoopSocial aceita respostas de canais tanto como lista no nível
   raiz quanto em envelopes `data`/`items`/`socialAccounts`.
+- Para produções antigas sem `script_language`, a publicação usa o idioma
+  do canal preservado em `metadata.editorial.channel.language`. A WoopSocial
+  pode identificar o canal pelo campo `username`; a interface o prioriza em
+  vez do ID técnico.

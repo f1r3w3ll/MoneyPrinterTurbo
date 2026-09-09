@@ -376,6 +376,10 @@ class StudioTests(unittest.TestCase):
              patch('app.services.woopsocial._headers', return_value={}):
             self.assertEqual(woopsocial.youtube_accounts(), [{'id': 'youtube-1', 'platform': 'YOUTUBE', 'name': 'Canal'}])
 
+    def test_woopsocial_uses_username_as_channel_label(self):
+        from app.services import woopsocial
+        self.assertEqual(woopsocial.account_label({'id': '171275273835118592', 'username': 'No One Wrote It Down'}), 'No One Wrote It Down')
+
     def test_queued_production_cannot_be_resumed_twice_and_survives_restart(self):
         from app.services import studio
         with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \

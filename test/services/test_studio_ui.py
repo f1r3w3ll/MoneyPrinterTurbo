@@ -22,6 +22,7 @@ class StudioUITest(unittest.TestCase):
         self.assertEqual(studio._publication_title(record), 'Título editorial completo')
         raw = '{"description": "A clean YouTube description.", "tags": ["AI"]}'
         self.assertEqual(studio._publication_description(raw), 'A clean YouTube description.')
+        self.assertEqual(studio._publication_language({'metadata': {'editorial': {'channel': {'language': 'en-US'}}}}), 'en-US')
 
     def test_production_controls_appear_only_after_a_script_is_ready(self):
         backend = ModuleType('app.services.studio')

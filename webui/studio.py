@@ -556,6 +556,13 @@ def _publication_description(raw):
     return description.strip()
 
 
+def _publication_language(script):
+    metadata = script.get('metadata') or {}
+    editorial = metadata.get('editorial') or {}
+    channel = editorial.get('channel') or {}
+    return metadata.get('script_language') or channel.get('language') or 'pt-BR'
+
+
 def _publication(settings):
     st.subheader('Publicação no YouTube')
     backend = importlib.import_module('app.services.studio')
@@ -569,8 +576,9 @@ def _publication(settings):
         try:
             from app.services.script_generator import ScriptGeneratorService
             project = backend.get_project(selected['id'])
-            language = (project['script'].get('metadata') or {}).get('script_language', 'pt-BR')
-            prompt = f"Generate a YouTube description in {language}, with short chapters and relevant tags. Return exactly one JSON object with only this field: {{\"description\": \"the complete final description\"}}. Title: {title}. Script: {json.dumps(project['script'], ensure_ascii=False)}"
+            language = _publication_language(project['script'])
+            language_name = {'en-US': 'English', 'pt-BR': 'Brazilian Portuguese', 'es-ES': 'Spanish'}.get(language, language)
+            prompt = f"Generate a YouTube description exclusively in {language_name}. Write every sentence, chapter label, and tag in {language_name}. Return exactly one JSON object with only this field: {{\"description\": \"the complete final description\"}}. Title: {title}. Script: {json.dumps(project['script'], ensure_ascii=False)}"
             generated = ScriptGeneratorService().generate_editorial_json('openai', prompt)
             st.session_state[f'publication_description_{selected["id"]}'] = _publication_description(generated)
         except Exception as exc:
@@ -590,7 +598,7 @@ def _publication(settings):
         accounts = woopsocial.youtube_accounts()
     except Exception as exc:
         st.error(redact(exc)); return
-    account = st.selectbox('Canal do YouTube', accounts, format_func=lambda item: item.get('name') or item.get('displayName') or item.get('id'))
+    account = st.selectbox('Canal do YouTube', accounts, format_func=woopsocial.account_label)
     if st.button('Publicar no YouTube', type='primary', key=f'publish_{selected["id"]}'):
         try:
             result = woopsocial.publish(selected['artifacts']['video'], account['id'], title, description, privacy, scheduled_at)

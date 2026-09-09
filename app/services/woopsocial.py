@@ -26,6 +26,15 @@ def youtube_accounts():
     return [item for item in values if isinstance(item, dict) and str(item.get('platform', '')).upper() == 'YOUTUBE']
 
 
+def account_label(account):
+    """Return the human channel name supplied by WoopSocial when available."""
+    for key in ('name', 'displayName', 'accountName', 'username', 'userName', 'handle'):
+        value = account.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return str(account.get('id', 'Canal sem nome'))
+
+
 def publish(video_path, account_id, title, description, privacy, scheduled_at=None):
     path = Path(video_path)
     if not path.is_file():
