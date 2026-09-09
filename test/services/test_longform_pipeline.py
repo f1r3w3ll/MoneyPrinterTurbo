@@ -49,6 +49,12 @@ class LongformTests(unittest.TestCase):
         parsed = ScriptParser().parse_json_script(data)
         self.assertEqual(parsed.scenes[0].transition, 'none')
 
+    def test_wipe_transition_from_generated_script_is_normalized(self):
+        data = example_script().model_dump()
+        data['scenes'][0]['transition'] = 'wipe'
+        parsed = ScriptParser().parse_json_script(data)
+        self.assertEqual(parsed.scenes[0].transition, 'slide')
+
     def test_caption_rendering_keeps_only_current_caption(self):
         from app.services import longform_media as media
         import numpy as np

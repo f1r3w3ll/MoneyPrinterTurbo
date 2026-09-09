@@ -143,9 +143,17 @@ class ScriptParser:
         Raises:
             ValueError: If validation fails
         """
-        # LLMs commonly use "cut" for a direct cut; internally this is "none".
-        if scene.transition == "cut":
-            scene.transition = "none"
+        # Models often use an editor's vocabulary rather than the renderer's
+        # small transition enum. Normalize equivalent names before validation.
+        if isinstance(scene.transition, str):
+            transition = scene.transition.strip().lower()
+            transition_aliases = {
+                "cut": "none", "hard cut": "none", "jump cut": "none",
+                "wipe": "slide", "swipe": "slide",
+                "dissolve": "fade", "crossfade": "fade", "cross-fade": "fade",
+                "fade in": "fade", "fade-out": "fade",
+            }
+            scene.transition = transition_aliases.get(transition, transition)
 
         # Check narration length
         if not scene.narration or len(scene.narration.strip()) < 10:

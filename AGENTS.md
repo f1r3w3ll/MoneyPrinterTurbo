@@ -258,3 +258,6 @@ O gerador original foi preservado.
   Chamadas OpenAI, DeepSeek, Kimi e Qwen de roteiro reservam 12.000 tokens de
   saída; Claude e Gemini usam 16.000. Isso acomoda roteiros longos em todos os
   providers disponíveis no Estúdio.
+- O parser normaliza vocabulário comum de transições retornado por LLMs:
+  `wipe`/`swipe` para `slide`, `dissolve`/`crossfade` para `fade` e cortes
+  diretos para `none`. Transições não reconhecidas continuam sendo rejeitadas.
