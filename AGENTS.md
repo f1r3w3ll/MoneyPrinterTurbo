@@ -252,3 +252,8 @@ O gerador original foi preservado.
   para o orçamento da meta e preserva a estrutura e os metadados. O contador
   fica no roteiro; após essa tentativa a interface exige ajuste manual, sem
   entrar em ciclos de chamadas à API.
+- A correção de duração restaura prompts visuais, transições, durações por
+  cena e campos narrativos técnicos do roteiro original; somente a narração
+  retornada pela IA é aproveitada. Isso evita `duration_seconds` inválido.
+  Chamadas OpenAI de roteiro reservam 12.000 tokens de saída para acomodar
+  roteiros longos.

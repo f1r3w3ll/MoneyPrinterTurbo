@@ -138,13 +138,35 @@ The current script is below or above the target. Expand or condense every scene 
 {json.dumps(source_script, ensure_ascii=False)}
 """
         content = self.generate_editorial_json(provider, prompt)
+        try:
+            corrected_data = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"A IA retornou uma correção inválida: {exc}") from exc
+
+        # This operation is narration-only. Providers occasionally rewrite a
+        # scene duration or visual field despite the instruction, which can
+        # make an otherwise valid correction fail the production parser.
+        original_scenes = {scene["index"]: scene for scene in source_script["scenes"]}
+        for scene in corrected_data.get("scenes", []):
+            original_scene = original_scenes.get(scene.get("index"))
+            if not original_scene:
+                continue
+            for field in (
+                "image_prompt", "duration_seconds", "transition",
+                "narrative_role", "visual_function", "open_loop", "source_note",
+            ):
+                scene[field] = original_scene.get(field)
+        corrected_data["title"] = source_script["title"]
+        corrected_data["description"] = source_script.get("description", "")
+        corrected_data["total_duration_estimate"] = source_script["total_duration_estimate"]
+        corrected_data["metadata"] = source_script.get("metadata", {})
         request = ScriptGenerationRequest(
             topic=script.title,
             duration_minutes=target_seconds / 60,
             language=language,
             llm_provider=provider,
         )
-        corrected = self._parse_script_json(content, request)
+        corrected = self._parse_script_json(json.dumps(corrected_data), request)
         corrected.metadata = {
             **dict(corrected.metadata or {}),
             **metadata,
@@ -266,6 +288,7 @@ Output ONLY the JSON, no explanations or markdown formatting.
                 {"role": "user", "content": prompt},
             ],
             temperature=0.7,
+            max_tokens=12000,
             response_format={"type": "json_object"},
         )
 

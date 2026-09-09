@@ -149,7 +149,7 @@ class StudioTests(unittest.TestCase):
         }), ScriptGenerationRequest(topic='AI infrastructure', duration_minutes=20, language='en-US'))
         corrected_json = json.dumps({
             'title': original.title, 'description': '', 'total_duration_estimate': 1200,
-            'scenes': [dict(index=index, narration='Expanded narration that keeps the original point while providing substantially more useful context for the viewer.', image_prompt='Detailed documentary image') for index in range(5)],
+            'scenes': [dict(index=index, narration='Expanded narration that keeps the original point while providing substantially more useful context for the viewer.', image_prompt='Changed image prompt', duration_seconds=120) for index in range(5)],
         })
 
         with patch.object(generator, 'generate_editorial_json', return_value=corrected_json) as generate:
@@ -158,6 +158,8 @@ class StudioTests(unittest.TestCase):
         self.assertIn('Rewrite only the narration', generate.call_args.args[1])
         self.assertEqual(corrected.metadata['duration_correction_attempts'], 1)
         self.assertEqual(corrected.metadata['editorial']['promise'], 'Explain the hidden systems.')
+        self.assertTrue(all(scene.duration_seconds is None for scene in corrected.scenes))
+        self.assertTrue(all(scene.image_prompt == 'Detailed documentary image' for scene in corrected.scenes))
         with self.assertRaisesRegex(ValueError, 'já foi usada'):
             generator.correct_script_duration(corrected, 'openai')
 
@@ -213,6 +215,28 @@ class StudioTests(unittest.TestCase):
         with patch.dict(sys.modules, {'anthropic': module}):
             ScriptGeneratorService()._generate_claude('teste', {'api_key': 'test', 'model': 'claude-sonnet-4-6'})
         self.assertEqual(created, [{'api_key': 'test'}])
+
+    def test_openai_script_generation_reserves_longform_output_capacity(self):
+        from app.services.script_generator import ScriptGeneratorService
+        calls = []
+
+        class FakeOpenAI:
+            def __init__(self, **kwargs):
+                self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+            def create(self, **kwargs):
+                calls.append(kwargs)
+                return SimpleNamespace(
+                    choices=[SimpleNamespace(message=SimpleNamespace(content='{}'))],
+                    usage=None,
+                )
+
+        module = ModuleType('openai')
+        module.OpenAI = FakeOpenAI
+        with patch.dict(sys.modules, {'openai': module}):
+            ScriptGeneratorService()._generate_openai('teste', {'api_key': 'test', 'model': 'gpt-4o'})
+
+        self.assertEqual(calls[0]['max_tokens'], 12000)
 
     def test_provider_connection_error_names_provider_and_configuration(self):
         from app.services.provider_errors import explain_generation_error
