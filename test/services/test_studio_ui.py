@@ -26,6 +26,24 @@ class StudioUITest(unittest.TestCase):
         self.assertEqual(studio._youtube_title('A title that should stay intact'), 'A title that should stay intact')
         self.assertLessEqual(len(studio._youtube_title('A very long title ' * 20)), 100)
 
+    def test_publication_description_renders_the_fixed_editorial_sequence(self):
+        raw = '''{
+          "summary": "A concise video summary.",
+          "chapters": [{"time": "00:00", "title": "The beginning"}],
+          "takeaways": ["A practical idea"],
+          "sources": ["Official technical documentation"],
+          "cta": "Subscribe for the next episode.",
+          "hashtags": ["#Technology", "#Science"],
+          "tags": ["technology explained", "data centers"]
+        }'''
+        description, tags = studio._publication_content(raw)
+        self.assertEqual(tags, ['technology explained', 'data centers'])
+        self.assertLess(description.index('VIDEO SUMMARY'), description.index('CHAPTERS'))
+        self.assertLess(description.index('CHAPTERS'), description.index('KEY TAKEAWAYS'))
+        self.assertLess(description.index('KEY TAKEAWAYS'), description.index('SOURCES & NOTES'))
+        self.assertLess(description.index('SOURCES & NOTES'), description.index('Subscribe for the next episode.'))
+        self.assertTrue(description.endswith('#Technology #Science'))
+
     def test_production_controls_appear_only_after_a_script_is_ready(self):
         backend = ModuleType('app.services.studio')
         backend.list_drafts = Mock(return_value=[])

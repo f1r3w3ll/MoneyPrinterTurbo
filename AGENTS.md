@@ -298,3 +298,8 @@ O gerador original foi preservado.
 - Títulos de YouTube têm limite de 100 caracteres. O Estúdio encurta o título
   editorial automático por palavras, mostra a contagem e valida esse limite
   antes de iniciar o upload do MP4.
+- A geração de descrição segue uma estrutura determinística: resumo, capítulos
+  temporizados, pontos principais, fontes/notas, CTA e hashtags. A IA retorna
+  dados estruturados e o Estúdio renderiza os blocos nessa ordem. As tags de
+  busca ficam em um campo separado, editável, limitado a 15 itens e são
+  enviadas no campo próprio do YouTube pela WoopSocial.

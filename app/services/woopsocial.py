@@ -45,7 +45,7 @@ def account_label(account):
     return str(account.get('id', 'Canal sem nome'))
 
 
-def publish(video_path, project_id, account_id, title, description, privacy, scheduled_at=None):
+def publish(video_path, project_id, account_id, title, description, privacy, scheduled_at=None, tags=None):
     path = Path(video_path)
     if not path.is_file():
         raise ValueError('O MP4 desta produção não está disponível.')
@@ -60,8 +60,11 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
     media_id = upload.json().get('id') or upload.json().get('data', {}).get('id')
     schedule = {'type': 'PUBLISH_NOW'} if privacy != 'scheduled' else {'type': 'SCHEDULE_FOR_LATER', 'scheduledFor': scheduled_at}
     privacy_value = 'private' if privacy == 'scheduled' else privacy
+    youtube_target = {'platform': 'YOUTUBE', 'socialAccountId': account_id, 'title': title, 'privacy': privacy_value}
+    if tags:
+        youtube_target['tags'] = [str(tag).strip() for tag in tags if str(tag).strip()]
     body = {'content': [{'text': description, 'media': [{'type': 'MEDIA_LIBRARY', 'mediaId': media_id}]}], 'schedule': schedule,
-            'socialAccounts': [{'platform': 'YOUTUBE', 'socialAccountId': account_id, 'title': title, 'privacy': privacy_value}]}
+            'socialAccounts': [youtube_target]}
     response = requests.post(f'{BASE_URL}/posts', headers={**_headers(), 'Content-Type': 'application/json'}, json=body, timeout=60)
     response.raise_for_status()
     return response.json()

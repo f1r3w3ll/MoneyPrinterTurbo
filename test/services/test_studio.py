@@ -405,6 +405,18 @@ class StudioTests(unittest.TestCase):
                     woopsocial.publish(video, 'project-1', 'account-1', 'A' * 101, 'Description', 'private')
             request.assert_not_called()
 
+    def test_woopsocial_sends_youtube_tags(self):
+        from app.services import woopsocial
+        with tempfile.TemporaryDirectory() as tmp:
+            video = Path(tmp) / 'video.mp4'
+            video.write_bytes(b'video')
+            upload = Mock(); upload.json.return_value = {'id': 'media-1'}
+            posted = Mock(); posted.json.return_value = {'id': 'post-1'}
+            with patch('app.services.woopsocial.requests.post', side_effect=[upload, posted]) as request, \
+                 patch('app.services.woopsocial._headers', return_value={}):
+                woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private', tags=['science', 'technology'])
+            self.assertEqual(request.call_args_list[1].kwargs['json']['socialAccounts'][0]['tags'], ['science', 'technology'])
+
     def test_queued_production_cannot_be_resumed_twice_and_survives_restart(self):
         from app.services import studio
         with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \

@@ -543,18 +543,24 @@ def _youtube_title(value):
     return shortened or title[:100]
 
 
+def _publication_payload(raw):
+    """Parse the JSON-mode LLM response used by publication generation."""
+    if isinstance(raw, dict):
+        return raw
+    content = str(raw or '').strip()
+    if content.startswith('```'):
+        content = content.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
+    try:
+        return json.loads(content)
+    except ValueError:
+        return content
+
+
 def _publication_description(raw):
     """Extract displayable description text from a JSON-mode LLM response."""
-    if isinstance(raw, dict):
-        payload = raw
-    else:
-        content = str(raw or '').strip()
-        if content.startswith('```'):
-            content = content.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
-        try:
-            payload = json.loads(content)
-        except ValueError:
-            return content
+    payload = _publication_payload(raw)
+    if isinstance(payload, str):
+        return payload
     if not isinstance(payload, dict):
         raise ValueError('A IA não retornou uma descrição válida. Tente gerar novamente.')
     description = payload.get('description') or payload.get('content')
@@ -563,6 +569,40 @@ def _publication_description(raw):
     if not isinstance(description, str) or not description.strip():
         raise ValueError('A IA não retornou o campo de descrição. Tente gerar novamente.')
     return description.strip()
+
+
+def _publication_content(raw):
+    """Render a stable description and return its separate YouTube search tags."""
+    payload = _publication_payload(raw)
+    if not isinstance(payload, dict) or 'summary' not in payload:
+        return _publication_description(payload), []
+
+    def strings(value):
+        return [str(item).strip() for item in (value or []) if str(item).strip()]
+
+    summary = str(payload.get('summary') or '').strip()
+    if not summary:
+        raise ValueError('A IA não retornou o resumo da descrição. Tente gerar novamente.')
+    chapters = []
+    for item in payload.get('chapters') or []:
+        if isinstance(item, dict) and item.get('time') and item.get('title'):
+            chapters.append(f"{str(item['time']).strip()} — {str(item['title']).strip()}")
+    takeaways = strings(payload.get('takeaways'))
+    sources = strings(payload.get('sources'))
+    cta = str(payload.get('cta') or '').strip()
+    hashtags = [tag if tag.startswith('#') else f'#{tag.replace(" ", "")}' for tag in strings(payload.get('hashtags'))]
+    tags = strings(payload.get('tags'))[:15]
+    sections = [
+        f"━━ VIDEO SUMMARY ━━\n{summary}",
+        "━━ CHAPTERS ━━\n" + ('\n'.join(chapters) if chapters else 'Chapters are not available for this video.'),
+        "━━ KEY TAKEAWAYS ━━\n" + ('\n'.join(f'• {item}' for item in takeaways) if takeaways else 'Key ideas are covered throughout the video.'),
+        "━━ SOURCES & NOTES ━━\n" + ('\n'.join(f'• {item}' for item in sources) if sources else 'No external sources were supplied with this production.'),
+    ]
+    if cta:
+        sections.append(cta)
+    if hashtags:
+        sections.append(' '.join(hashtags))
+    return '\n\n'.join(sections), tags
 
 
 def _publication_language(script):
@@ -588,12 +628,26 @@ def _publication(settings):
             project = backend.get_project(selected['id'])
             language = _publication_language(project['script'])
             language_name = {'en-US': 'English', 'pt-BR': 'Brazilian Portuguese', 'es-ES': 'Spanish'}.get(language, language)
-            prompt = f"Generate a YouTube description exclusively in {language_name}. Write every sentence, chapter label, and tag in {language_name}. Return exactly one JSON object with only this field: {{\"description\": \"the complete final description\"}}. Title: {title}. Script: {json.dumps(project['script'], ensure_ascii=False)}"
+            prompt = f"""Generate YouTube publication metadata exclusively in {language_name}. Return exactly one JSON object with these fields and no others:
+{{
+  \"summary\": \"two concise paragraphs explaining the video promise and value\",
+  \"chapters\": [{{\"time\": \"00:00\", \"title\": \"chapter title\"}}],
+  \"takeaways\": [\"3 to 5 specific viewer takeaways\"],
+  \"sources\": [\"only sources or research notes present in the script; never invent URLs or citations\"],
+  \"cta\": \"one natural channel-appropriate call to action\",
+  \"hashtags\": [\"3 relevant hashtags\"],
+  \"tags\": [\"8 to 15 YouTube search tags without #\"]
+}}
+Do not place headings inside any field. Use the supplied scene timing for chapters. Title: {title}. Script: {json.dumps(project['script'], ensure_ascii=False)}"""
             generated = ScriptGeneratorService().generate_editorial_json('openai', prompt)
-            st.session_state[f'publication_description_{selected["id"]}'] = _publication_description(generated)
+            description_value, generated_tags = _publication_content(generated)
+            st.session_state[f'publication_description_{selected["id"]}'] = description_value
+            st.session_state[f'publication_tags_{selected["id"]}'] = ', '.join(generated_tags)
         except Exception as exc:
             st.error(redact(exc))
     description = st.text_area('Descrição', value=st.session_state.get(f'publication_description_{selected["id"]}', ''), key=f'publication_description_{selected["id"]}', height=220)
+    tags_value = st.text_input('Tags do YouTube', value=st.session_state.get(f'publication_tags_{selected["id"]}', ''), key=f'publication_tags_{selected["id"]}', help='Separadas por vírgula; enviadas ao campo de tags do YouTube.')
+    tags = [tag.strip() for tag in tags_value.split(',') if tag.strip()][:15]
     privacy = st.selectbox('Visibilidade', ['private', 'unlisted', 'public', 'scheduled'], format_func=lambda x: {'private': 'Privado', 'unlisted': 'Não listado', 'public': 'Público', 'scheduled': 'Agendado'}[x])
     scheduled_at = None
     if privacy == 'scheduled':
@@ -616,7 +670,7 @@ def _publication(settings):
     account = st.selectbox('Canal do YouTube', accounts, format_func=woopsocial.account_label)
     if st.button('Publicar no YouTube', type='primary', key=f'publish_{selected["id"]}'):
         try:
-            result = woopsocial.publish(selected['artifacts']['video'], project['id'], account['id'], title, description, privacy, scheduled_at)
+            result = woopsocial.publish(selected['artifacts']['video'], project['id'], account['id'], title, description, privacy, scheduled_at, tags=tags)
             st.success('Publicação enviada à WoopSocial.')
             st.json(result)
         except Exception as exc:
