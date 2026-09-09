@@ -321,8 +321,8 @@ def _editor(backend):
         st.warning(duration_label + '. Ajuste a narração antes de produzir o vídeo.')
         metadata = script.get('metadata') or {}
         attempts = int(metadata.get('duration_correction_attempts', 0))
-        provider = metadata.get('script_llm_provider')
-        if attempts < 1 and provider:
+        provider = metadata.get('script_llm_provider', 'openai')
+        if attempts < 1:
             if st.button('Ajustar duração com IA', key=f'correct_duration_{revision}'):
                 from app.services.script_generator import ScriptGeneratorService
                 with st.spinner('Ajustando a narração para a duração escolhida…'):
