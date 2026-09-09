@@ -291,3 +291,7 @@ O gerador original foi preservado.
   do canal preservado em `metadata.editorial.channel.language`. A WoopSocial
   pode identificar o canal pelo campo `username`; a interface o prioriza em
   vez do ID técnico.
+- O upload de mídia da WoopSocial requer `projectId` na query. A interface
+  lista os projetos disponíveis e envia o MP4 ao projeto escolhido antes de
+  criar o post. O payload atual do YouTube usa `title` e `privacy` diretamente
+  no item de canal; agendamentos usam `SCHEDULE_FOR_LATER` e `scheduledFor`.

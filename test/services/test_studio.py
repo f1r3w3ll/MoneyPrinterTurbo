@@ -380,6 +380,21 @@ class StudioTests(unittest.TestCase):
         from app.services import woopsocial
         self.assertEqual(woopsocial.account_label({'id': '171275273835118592', 'username': 'No One Wrote It Down'}), 'No One Wrote It Down')
 
+    def test_woopsocial_uploads_video_to_project_and_posts_youtube_payload(self):
+        from app.services import woopsocial
+        with tempfile.TemporaryDirectory() as tmp:
+            video = Path(tmp) / 'video.mp4'
+            video.write_bytes(b'video')
+            upload = Mock(); upload.json.return_value = {'id': 'media-1'}
+            posted = Mock(); posted.json.return_value = {'id': 'post-1'}
+            with patch('app.services.woopsocial.requests.post', side_effect=[upload, posted]) as request, \
+                 patch('app.services.woopsocial._headers', return_value={'Authorization': 'Bearer test'}):
+                self.assertEqual(woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private'), {'id': 'post-1'})
+            self.assertEqual(request.call_args_list[0].kwargs['params'], {'projectId': 'project-1'})
+            payload = request.call_args_list[1].kwargs['json']
+            self.assertEqual(payload['schedule'], {'type': 'PUBLISH_NOW'})
+            self.assertEqual(payload['socialAccounts'][0], {'platform': 'YOUTUBE', 'socialAccountId': 'account-1', 'title': 'Title', 'privacy': 'private'})
+
     def test_queued_production_cannot_be_resumed_twice_and_survives_restart(self):
         from app.services import studio
         with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \

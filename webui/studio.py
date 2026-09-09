@@ -595,13 +595,18 @@ def _publication(settings):
         return
     try:
         from app.services import woopsocial
+        available_projects = woopsocial.projects()
         accounts = woopsocial.youtube_accounts()
     except Exception as exc:
         st.error(redact(exc)); return
+    if not available_projects:
+        st.error('Nenhum projeto WoopSocial disponível para a chave configurada.')
+        return
+    project = st.selectbox('Projeto WoopSocial', available_projects, format_func=lambda item: item.get('name') or item['id'])
     account = st.selectbox('Canal do YouTube', accounts, format_func=woopsocial.account_label)
     if st.button('Publicar no YouTube', type='primary', key=f'publish_{selected["id"]}'):
         try:
-            result = woopsocial.publish(selected['artifacts']['video'], account['id'], title, description, privacy, scheduled_at)
+            result = woopsocial.publish(selected['artifacts']['video'], project['id'], account['id'], title, description, privacy, scheduled_at)
             st.success('Publicação enviada à WoopSocial.')
             st.json(result)
         except Exception as exc:
