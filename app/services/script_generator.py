@@ -109,6 +109,49 @@ class ScriptGeneratorService:
         content, _, _ = generator(prompt, llm_config)
         return content
 
+    def correct_script_duration(
+        self, script: StructuredScript, provider: str
+    ) -> StructuredScript:
+        """Perform one bounded narration-only rewrite to meet the time target."""
+        metadata = dict(script.metadata or {})
+        attempts = int(metadata.get("duration_correction_attempts", 0))
+        if attempts >= 1:
+            raise ValueError("A correção automática de duração já foi usada neste roteiro.")
+
+        target_seconds = int(metadata.get("target_duration_seconds") or script.total_duration_estimate)
+        language = metadata.get("script_language", "pt-BR")
+        chars_per_second = ScriptParser.chars_per_second_for(language)
+        narration_budget = int(target_seconds * chars_per_second)
+        current_duration = ScriptParser().estimate_total_duration(script, language=language)
+        source_script = script.model_dump()
+        prompt = f"""You are revising an existing structured YouTube script.
+
+Rewrite only the narration so it reaches the requested duration while preserving the topic, facts, narrative flow, scene count, image prompts, transitions, title, description, and metadata.
+
+**Duration target:** {target_seconds} seconds in {language}
+**Narration budget:** about {narration_budget:,} characters total
+**Current narration estimate:** {current_duration:.0f} seconds
+
+The current script is below or above the target. Expand or condense every scene proportionally with concrete, useful narration. Do not add filler, duplicate points, new unsupported claims, or placeholder text. Keep every existing JSON field and return the complete corrected script as JSON only.
+
+**Current script:**
+{json.dumps(source_script, ensure_ascii=False)}
+"""
+        content = self.generate_editorial_json(provider, prompt)
+        request = ScriptGenerationRequest(
+            topic=script.title,
+            duration_minutes=target_seconds / 60,
+            language=language,
+            llm_provider=provider,
+        )
+        corrected = self._parse_script_json(content, request)
+        corrected.metadata = {
+            **dict(corrected.metadata or {}),
+            **metadata,
+            "duration_correction_attempts": attempts + 1,
+        }
+        return corrected
+
     def _build_prompt(self, request: ScriptGenerationRequest) -> str:
         """Build LLM prompt for script generation"""
         # Calculate number of scenes if not provided
@@ -438,6 +481,7 @@ Output ONLY the JSON, no explanations or markdown formatting.
         metadata = data.get("metadata", {}) or {}
         metadata.setdefault("script_language", request.language)
         metadata.setdefault("target_duration_seconds", int(request.duration_minutes * 60))
+        metadata.setdefault("script_llm_provider", request.llm_provider.value)
         if request.editorial_context:
             generated_editorial = metadata.get("editorial", {}) or {}
             metadata["editorial"] = {

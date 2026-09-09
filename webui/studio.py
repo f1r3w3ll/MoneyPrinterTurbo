@@ -319,6 +319,23 @@ def _editor(backend):
         st.info(duration_label)
     else:
         st.warning(duration_label + '. Ajuste a narração antes de produzir o vídeo.')
+        metadata = script.get('metadata') or {}
+        attempts = int(metadata.get('duration_correction_attempts', 0))
+        provider = metadata.get('script_llm_provider')
+        if attempts < 1 and provider:
+            if st.button('Ajustar duração com IA', key=f'correct_duration_{revision}'):
+                from app.services.script_generator import ScriptGeneratorService
+                with st.spinner('Ajustando a narração para a duração escolhida…'):
+                    try:
+                        corrected = ScriptGeneratorService().correct_script_duration(
+                            ScriptParser().parse_json_script(script), provider
+                        )
+                        _load(corrected.model_dump(), st.session_state.get('studio_draft_id'))
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(redact(explain_generation_error(provider, exc)))
+        elif attempts >= 1:
+            st.caption('A correção automática de duração já foi usada uma vez. Faça os ajustes restantes no roteiro para evitar tentativas em cadeia.')
     editorial_data = (script.get('metadata') or {}).get('editorial', {})
     if editorial_data:
         roles = [scene.get('narrative_role') for scene in script.get('scenes', []) if scene.get('narrative_role')]

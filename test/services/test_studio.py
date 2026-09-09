@@ -137,6 +137,30 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(script.metadata['script_language'], 'en-US')
         self.assertEqual(script.metadata['target_duration_seconds'], 1200)
 
+    def test_duration_correction_is_limited_and_preserves_editorial_metadata(self):
+        from app.models.schema import ScriptGenerationRequest
+        from app.services.script_generator import ScriptGeneratorService
+
+        generator = ScriptGeneratorService()
+        original = generator._parse_script_json(json.dumps({
+            'title': 'AI infrastructure', 'description': '', 'total_duration_estimate': 1200,
+            'scenes': [dict(index=index, narration='Short but complete narration for this scene.', image_prompt='Detailed documentary image') for index in range(5)],
+            'metadata': {'editorial': {'promise': 'Explain the hidden systems.'}},
+        }), ScriptGenerationRequest(topic='AI infrastructure', duration_minutes=20, language='en-US'))
+        corrected_json = json.dumps({
+            'title': original.title, 'description': '', 'total_duration_estimate': 1200,
+            'scenes': [dict(index=index, narration='Expanded narration that keeps the original point while providing substantially more useful context for the viewer.', image_prompt='Detailed documentary image') for index in range(5)],
+        })
+
+        with patch.object(generator, 'generate_editorial_json', return_value=corrected_json) as generate:
+            corrected = generator.correct_script_duration(original, 'openai')
+
+        self.assertIn('Rewrite only the narration', generate.call_args.args[1])
+        self.assertEqual(corrected.metadata['duration_correction_attempts'], 1)
+        self.assertEqual(corrected.metadata['editorial']['promise'], 'Explain the hidden systems.')
+        with self.assertRaisesRegex(ValueError, 'já foi usada'):
+            generator.correct_script_duration(corrected, 'openai')
+
     def test_production_identifier_uses_a_readable_title_slug(self):
         from app.services.studio import production_identifier
 

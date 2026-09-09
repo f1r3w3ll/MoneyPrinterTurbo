@@ -247,3 +247,8 @@ O gerador original foi preservado.
 - Títulos automáticos de embalagem são encurtados por palavra para até 70
   caracteres, evitando que temas longos sejam concatenados em títulos pouco
   legíveis. As sugestões continuam editáveis pelo usuário.
+- Quando um roteiro gerado ficar fora da faixa de duração, a revisão oferece
+  uma única ação `Ajustar duração com IA`. Ela reescreve somente a narração
+  para o orçamento da meta e preserva a estrutura e os metadados. O contador
+  fica no roteiro; após essa tentativa a interface exige ajuste manual, sem
+  entrar em ciclos de chamadas à API.
