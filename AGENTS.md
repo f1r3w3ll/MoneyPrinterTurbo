@@ -306,3 +306,6 @@ O gerador original foi preservado.
 - Antes de criar o post, a integração chama `POST /posts/validate`. Uma
   rejeição é exibida com as mensagens da WoopSocial e não cria o post; isso
   substitui os erros HTTP 400 genéricos por orientação acionável.
+- Erros HTTP do upload, validação e criação do post preservam o campo de
+  detalhe devolvido pela WoopSocial (`error_message`, `message` ou `error`),
+  em vez de expor somente a URL do endpoint.

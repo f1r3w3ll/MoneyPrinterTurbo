@@ -14,9 +14,26 @@ def _headers():
     return {'Authorization': f'Bearer {key}'}
 
 
+def _ensure_success(response, action):
+    """Keep the API's actionable error detail instead of a generic HTTP error."""
+    try:
+        response.raise_for_status()
+    except Exception as exc:
+        try:
+            payload = response.json()
+        except Exception:
+            payload = None
+        if isinstance(payload, dict):
+            detail = payload.get('error_message') or payload.get('message') or payload.get('error')
+        else:
+            detail = None
+        detail = detail or getattr(response, 'text', '') or str(exc)
+        raise ValueError(f'WoopSocial recusou {action}: {detail}') from exc
+
+
 def youtube_accounts():
     response = requests.get(f'{BASE_URL}/social-accounts', headers=_headers(), timeout=30)
-    response.raise_for_status()
+    _ensure_success(response, 'a lista de canais')
     payload = response.json()
     values = payload.get('data', payload) if isinstance(payload, dict) else payload
     if isinstance(values, dict):
@@ -28,7 +45,7 @@ def youtube_accounts():
 
 def projects():
     response = requests.get(f'{BASE_URL}/projects', headers=_headers(), timeout=30)
-    response.raise_for_status()
+    _ensure_success(response, 'a lista de projetos')
     payload = response.json()
     values = payload.get('data', payload) if isinstance(payload, dict) else payload
     if not isinstance(values, list):
@@ -56,7 +73,7 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
         raise ValueError('O título do YouTube pode ter no máximo 100 caracteres.')
     with path.open('rb') as file:
         upload = requests.post(f'{BASE_URL}/media', headers=_headers(), params={'projectId': project_id}, files={'file': (path.name, file, 'video/mp4')}, timeout=600)
-    upload.raise_for_status()
+    _ensure_success(upload, 'o upload do vídeo')
     media_id = upload.json().get('id') or upload.json().get('data', {}).get('id')
     schedule = {'type': 'PUBLISH_NOW'} if privacy != 'scheduled' else {'type': 'SCHEDULE_FOR_LATER', 'scheduledFor': scheduled_at}
     privacy_value = 'private' if privacy == 'scheduled' else privacy
@@ -67,12 +84,12 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
             'socialAccounts': [youtube_target]}
     headers = {**_headers(), 'Content-Type': 'application/json'}
     validation = requests.post(f'{BASE_URL}/posts/validate', headers=headers, json=body, timeout=60)
-    validation.raise_for_status()
+    _ensure_success(validation, 'a validação da publicação')
     validation_result = validation.json()
     if not validation_result.get('isValid', False):
         errors = validation_result.get('errors') or []
         messages = [str(item.get('message') or item) for item in errors if item]
         raise ValueError('WoopSocial rejeitou a publicação: ' + ('; '.join(messages) or 'payload inválido.'))
     response = requests.post(f'{BASE_URL}/posts', headers=headers, json=body, timeout=60)
-    response.raise_for_status()
+    _ensure_success(response, 'a criação da publicação')
     return response.json()

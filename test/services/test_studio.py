@@ -434,6 +434,20 @@ class StudioTests(unittest.TestCase):
                     woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private')
             self.assertEqual(request.call_count, 2)
 
+    def test_woopsocial_exposes_api_validation_error_details(self):
+        from app.services import woopsocial
+        with tempfile.TemporaryDirectory() as tmp:
+            video = Path(tmp) / 'video.mp4'
+            video.write_bytes(b'video')
+            upload = Mock(); upload.json.return_value = {'id': 'media-1'}
+            validation = Mock(); validation.status_code = 400; validation.text = '{"error_message":"specific API rule"}'
+            validation.json.return_value = {'error_message': 'specific API rule'}
+            validation.raise_for_status.side_effect = Exception('HTTP 400')
+            with patch('app.services.woopsocial.requests.post', side_effect=[upload, validation]), \
+                 patch('app.services.woopsocial._headers', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'specific API rule'):
+                    woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private')
+
     def test_queued_production_cannot_be_resumed_twice_and_survives_restart(self):
         from app.services import studio
         with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
