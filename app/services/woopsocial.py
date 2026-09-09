@@ -74,7 +74,11 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
     with path.open('rb') as file:
         upload = requests.post(f'{BASE_URL}/media', headers=_headers(), params={'projectId': project_id}, files={'file': (path.name, file, 'video/mp4')}, timeout=600)
     _ensure_success(upload, 'o upload do vídeo')
-    media_id = upload.json().get('id') or upload.json().get('data', {}).get('id')
+    upload_result = upload.json()
+    media_id = (upload_result.get('id') or (upload_result.get('data') or {}).get('id')
+                or (upload_result.get('media') or {}).get('id'))
+    if not media_id:
+        raise ValueError('A WoopSocial não devolveu o identificador da mídia enviada.')
     schedule = {'type': 'PUBLISH_NOW'} if privacy != 'scheduled' else {'type': 'SCHEDULE_FOR_LATER', 'scheduledFor': scheduled_at}
     privacy_value = 'private' if privacy == 'scheduled' else privacy
     youtube_target = {'platform': 'YOUTUBE', 'socialAccountId': account_id, 'title': title, 'privacy': privacy_value}

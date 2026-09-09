@@ -385,7 +385,7 @@ class StudioTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
-            upload = Mock(); upload.json.return_value = {'id': 'media-1'}
+            upload = Mock(); upload.json.return_value = {'media': {'id': 'media-1'}}
             validation = Mock(); validation.json.return_value = {'isValid': True, 'errors': []}
             posted = Mock(); posted.json.return_value = {'id': 'post-1'}
             with patch('app.services.woopsocial.requests.post', side_effect=[upload, validation, posted]) as request, \
@@ -397,6 +397,18 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(payload['socialAccounts'][0], {'platform': 'YOUTUBE', 'socialAccountId': 'account-1', 'title': 'Title', 'privacy': 'private'})
             self.assertEqual(request.call_args_list[1].args[0], f'{woopsocial.BASE_URL}/posts/validate')
             self.assertEqual(request.call_args_list[2].args[0], f'{woopsocial.BASE_URL}/posts')
+
+    def test_woopsocial_stops_when_upload_response_has_no_media_id(self):
+        from app.services import woopsocial
+        with tempfile.TemporaryDirectory() as tmp:
+            video = Path(tmp) / 'video.mp4'
+            video.write_bytes(b'video')
+            upload = Mock(); upload.json.return_value = {'media': {}}
+            with patch('app.services.woopsocial.requests.post', return_value=upload) as request, \
+                 patch('app.services.woopsocial._headers', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'identificador da mídia'):
+                    woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private')
+            self.assertEqual(request.call_count, 1)
 
     def test_woopsocial_rejects_an_overlong_youtube_title_before_upload(self):
         from app.services import woopsocial
