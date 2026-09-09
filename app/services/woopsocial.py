@@ -1,0 +1,39 @@
+"""WoopSocial publishing client. Credentials stay in local configuration."""
+from pathlib import Path
+import requests
+
+from app.config import config
+
+BASE_URL = 'https://api.woopsocial.com/v1'
+
+
+def _headers():
+    key = config.app.get('woopsocial_api_key', '')
+    if not key:
+        raise ValueError('Configure a chave WoopSocial em Configurações.')
+    return {'Authorization': f'Bearer {key}'}
+
+
+def youtube_accounts():
+    response = requests.get(f'{BASE_URL}/social-accounts', headers=_headers(), timeout=30)
+    response.raise_for_status()
+    values = response.json().get('data', response.json())
+    return [item for item in values if str(item.get('platform', '')).upper() == 'YOUTUBE']
+
+
+def publish(video_path, account_id, title, description, privacy, scheduled_at=None):
+    path = Path(video_path)
+    if not path.is_file():
+        raise ValueError('O MP4 desta produção não está disponível.')
+    with path.open('rb') as file:
+        upload = requests.post(f'{BASE_URL}/media', headers=_headers(), files={'file': (path.name, file, 'video/mp4')}, timeout=600)
+    upload.raise_for_status()
+    media_id = upload.json().get('id') or upload.json().get('data', {}).get('id')
+    schedule = {'type': 'PUBLISH_NOW'} if privacy != 'scheduled' else {'type': 'SCHEDULED', 'date': scheduled_at}
+    privacy_value = 'private' if privacy == 'scheduled' else privacy
+    body = {'content': [{'text': description, 'media': [{'type': 'MEDIA_LIBRARY', 'mediaId': media_id}]}], 'schedule': schedule,
+            'socialAccounts': [{'platform': 'YOUTUBE', 'socialAccountId': account_id, 'postType': 'VIDEO',
+                                'platformSpecificData': {'title': title, 'privacy': privacy_value}}]}
+    response = requests.post(f'{BASE_URL}/posts', headers={**_headers(), 'Content-Type': 'application/json'}, json=body, timeout=60)
+    response.raise_for_status()
+    return response.json()

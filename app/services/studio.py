@@ -93,6 +93,24 @@ def get_production(identifier):
         return record
 
 
+def get_project(identifier):
+    """Return a restorable project for new and legacy productions."""
+    record = get_production(identifier)
+    params = record.get('params', {})
+    script = params.get('structured_script')
+    artifact = (record.get('artifacts') or {}).get('script')
+    if artifact and Path(artifact).is_file():
+        try:
+            script = json.loads(Path(artifact).read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            pass
+    if not script:
+        raise ValueError('Esta produção não possui roteiro recuperável.')
+    editorial = (script.get('metadata') or {}).get('editorial', {})
+    return dict(id=record['id'], production=record, script=script,
+                brief=editorial.get('brief', {}), packaging=editorial.get('selected_package', {}))
+
+
 def list_productions():
     with _lock:
         records = []
@@ -128,6 +146,8 @@ def submit(params):
         record = dict(id=identifier, title=params.structured_script.title, status='queued', phase='queue',
             progress=0, error=None, params=_public_params(params), artifacts={}, created_at=now, updated_at=now)
         _write(_folder(identifier) / 'production.json', record)
+        _write(_folder(identifier) / 'project.json', dict(script=params.structured_script.model_dump(),
+            editorial=(params.structured_script.metadata or {}).get('editorial', {}), created_at=now))
         _enqueue(identifier)
     return identifier
 

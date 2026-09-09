@@ -2,6 +2,7 @@
 import importlib
 import importlib.util
 import json
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -220,6 +221,7 @@ def _settings(service):
             image_key = st.text_input('Chave OpenAI para imagens DALL-E', type='password')
             sd_key = st.text_input('Chave Replicate para Stable Diffusion', type='password')
             eleven_key = st.text_input('Chave ElevenLabs', type='password')
+            woop_key = st.text_input('Chave WoopSocial para publicação', type='password')
             saved_voice = values.get('premium_tts', {}).get('elevenlabs_voice_id', '')
             preset_values = [voice for _, voice in PREMIUM_VOICE_OPTIONS]
             default_voice_index = preset_values.index('elevenlabs:' + saved_voice) if 'elevenlabs:' + saved_voice in preset_values else 0
@@ -235,7 +237,7 @@ def _settings(service):
                     config['model'] = model.strip()
                 if base_url.strip():
                     config['base_url'] = base_url.strip()
-                service.save_settings({'llm': {provider: config}, 'image_generation': {'openai_api_key': image_key, 'sd_api_key': sd_key}, 'premium_tts': {'elevenlabs_api_key': eleven_key, 'elevenlabs_voice_id': eleven_voice}})
+                service.save_settings({'llm': {provider: config}, 'image_generation': {'openai_api_key': image_key, 'sd_api_key': sd_key}, 'premium_tts': {'elevenlabs_api_key': eleven_key, 'elevenlabs_voice_id': eleven_voice}, 'woopsocial': {'woopsocial_api_key': woop_key}})
                 st.success('Configurações salvas.')
     return service.get_settings()
 
@@ -484,6 +486,11 @@ def _history():
             st.progress(max(0.0, min(1.0, progress / 100)), text=f"Etapa: {record.get('phase') or 'aguardando'}")
             if record.get('error'):
                 st.error(redact(record['error']))
+            if st.button('Abrir projeto', key=f'open_project_{task_id}'):
+                project = backend.get_project(task_id)
+                st.session_state.studio_brief = project['brief']
+                _load(project['script'])
+                st.success('Projeto restaurado em Criar vídeo.')
             if record['status'] in ('failed', 'interrupted') and st.button('Retomar produção', key=f'resume_{task_id}'):
                 try:
                     backend.resume(task_id)
@@ -511,6 +518,50 @@ def _history():
                     st.download_button(f'Baixar {label.lower()}', path.read_bytes(), file_name=path.name, key=f'{name}_{task_id}')
 
 
+def _publication(settings):
+    st.subheader('Publicação no YouTube')
+    backend = importlib.import_module('app.services.studio')
+    records = [item for item in backend.list_productions() if item.get('status') == 'complete' and (item.get('artifacts') or {}).get('video')]
+    if not records:
+        st.info('Conclua uma produção para publicá-la.')
+        return
+    selected = st.selectbox('Vídeo concluído', records, format_func=lambda item: item['title'], key='publication_video')
+    params = selected.get('params', {})
+    title = st.text_input('Título de publicação', value=params.get('thumbnail_text') or selected['title'], key=f'publication_title_{selected["id"]}')
+    if st.button('Gerar descrição com IA', key=f'publication_ai_{selected["id"]}'):
+        try:
+            from app.services.script_generator import ScriptGeneratorService
+            project = backend.get_project(selected['id'])
+            language = (project['script'].get('metadata') or {}).get('script_language', 'pt-BR')
+            prompt = f"Generate a YouTube description in {language}, with short chapters and relevant tags. Return plain text only. Title: {title}. Script: {json.dumps(project['script'], ensure_ascii=False)}"
+            st.session_state[f'publication_description_{selected["id"]}'] = ScriptGeneratorService().generate_editorial_json('openai', prompt)
+        except Exception as exc:
+            st.error(redact(exc))
+    description = st.text_area('Descrição', value=st.session_state.get(f'publication_description_{selected["id"]}', ''), key=f'publication_description_{selected["id"]}', height=220)
+    privacy = st.selectbox('Visibilidade', ['private', 'unlisted', 'public', 'scheduled'], format_func=lambda x: {'private': 'Privado', 'unlisted': 'Não listado', 'public': 'Público', 'scheduled': 'Agendado'}[x])
+    scheduled_at = None
+    if privacy == 'scheduled':
+        day = st.date_input('Data de lançamento')
+        hour = st.time_input('Hora de lançamento')
+        scheduled_at = datetime.combine(day, hour).astimezone().isoformat()
+    if not settings.get('woopsocial', {}).get('configured'):
+        st.warning('Configure a chave WoopSocial em Configurações para carregar canais e publicar.')
+        return
+    try:
+        from app.services import woopsocial
+        accounts = woopsocial.youtube_accounts()
+    except Exception as exc:
+        st.error(redact(exc)); return
+    account = st.selectbox('Canal do YouTube', accounts, format_func=lambda item: item.get('name') or item.get('displayName') or item.get('id'))
+    if st.button('Publicar no YouTube', type='primary', key=f'publish_{selected["id"]}'):
+        try:
+            result = woopsocial.publish(selected['artifacts']['video'], account['id'], title, description, privacy, scheduled_at)
+            st.success('Publicação enviada à WoopSocial.')
+            st.json(result)
+        except Exception as exc:
+            st.error(redact(exc))
+
+
 def render():
     st.markdown(STUDIO_STYLE, unsafe_allow_html=True)
     st.markdown('''
@@ -524,7 +575,17 @@ def render():
     ''', unsafe_allow_html=True)
     backend = importlib.import_module('app.services.studio')
     settings_service = importlib.import_module('app.services.studio_settings')
-    create_tab, productions_tab, settings_tab = st.tabs(['Criar vídeo', 'Produções', 'Configurações'])
+    status = settings_service.get_settings()
+    status_columns = st.columns(4)
+    status_items = [
+        ('Roteiro IA', any(item.get('configured') for item in status.get('llm', {}).values())),
+        ('Imagens', status.get('image_generation', {}).get('openai_configured') or status.get('image_generation', {}).get('sd_configured')),
+        ('ElevenLabs', status.get('premium_tts', {}).get('elevenlabs_configured')),
+        ('WoopSocial', status.get('woopsocial', {}).get('configured')),
+    ]
+    for column, (label, configured) in zip(status_columns, status_items):
+        column.metric(label, 'Configurada' if configured else 'Pendente', '●' if configured else '○')
+    create_tab, productions_tab, publication_tab, settings_tab = st.tabs(['Criar vídeo', 'Produções', 'Publicação', 'Configurações'])
     try:
         with settings_tab:
             settings = _settings(settings_service)
@@ -544,5 +605,7 @@ def render():
     try:
         with productions_tab:
             _history()
+        with publication_tab:
+            _publication(settings)
     except Exception as exc:
         st.error(f'Não foi possível carregar o histórico: {redact(exc)}')

@@ -26,7 +26,8 @@ def get_settings():
         tts = dict(elevenlabs_api_key='', elevenlabs_configured=bool(config.premium_tts.get('elevenlabs_api_key')),
                    elevenlabs_voice_id=config.premium_tts.get('elevenlabs_voice_id', ''),
                    elevenlabs_model=config.premium_tts.get('elevenlabs_model', 'eleven_multilingual_v2'))
-        return dict(llm=llm, image_generation=image, premium_tts=tts)
+        woop = dict(api_key='', configured=bool(config.app.get('woopsocial_api_key')))
+        return dict(llm=llm, image_generation=image, premium_tts=tts, woopsocial=woop)
 
 
 def _merge(current, values, allowed):
@@ -58,13 +59,14 @@ def save_settings(values):
                      ('elevenlabs_api_key', 'elevenlabs_voice_id', 'elevenlabs_model'))
         if image.get('default_provider', 'dalle') not in ('dalle', 'sd'):
             raise ValueError('Provedor de imagens não implementado.')
-        previous = (copy.deepcopy(config.llm), copy.deepcopy(config.image_generation), copy.deepcopy(config.premium_tts))
+        app = _merge(config.app, values.get('woopsocial', {}), ('woopsocial_api_key',))
+        previous = (copy.deepcopy(config.llm), copy.deepcopy(config.image_generation), copy.deepcopy(config.premium_tts), copy.deepcopy(config.app))
         try:
-            for target, value in [(config.llm, llm), (config.image_generation, image), (config.premium_tts, tts)]:
+            for target, value in [(config.llm, llm), (config.image_generation, image), (config.premium_tts, tts), (config.app, app)]:
                 target.clear(); target.update(value)
             config.save_config()
         except Exception:
-            for target, value in zip((config.llm, config.image_generation, config.premium_tts), previous):
+            for target, value in zip((config.llm, config.image_generation, config.premium_tts, config.app), previous):
                 target.clear(); target.update(value)
             raise
 
