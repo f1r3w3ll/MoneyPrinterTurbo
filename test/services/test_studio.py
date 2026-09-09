@@ -30,6 +30,28 @@ class StudioTests(unittest.TestCase):
             self.assertTrue(all(option['thumbnail_text'] for option in options))
             self.assertTrue(all(option['promise'] == 'Entender por que essa batalha ainda afeta você.' for option in options))
 
+    def test_ai_brief_generation_normalizes_editable_fields(self):
+        from app.services import editorial
+
+        generated = json.dumps({
+            'central_question': 'Por que a disputa mudou a internet?',
+            'thesis': 'A rivalidade definiu padrões que ainda usamos.',
+            'promise': 'Entender como uma disputa comercial moldou sua navegação.',
+            'goal': 'Descoberta',
+            'sources': 'Buscar documentos, reportagens e fontes primárias.',
+        })
+        with patch('app.services.script_generator.ScriptGeneratorService.generate_editorial_json', return_value=generated) as generate:
+            brief = editorial.generate_brief(
+                'A guerra dos navegadores',
+                {'niche': 'História da tecnologia', 'audience': 'Curiosos adultos', 'promise': 'Explicar as forças por trás da tecnologia'},
+                'openai',
+            )
+
+        self.assertEqual(brief['topic'], 'A guerra dos navegadores')
+        self.assertEqual(brief['central_question'], 'Por que a disputa mudou a internet?')
+        self.assertEqual(brief['goal'], 'Descoberta')
+        self.assertIn('A guerra dos navegadores', generate.call_args.args[1])
+
     def test_editorial_context_is_present_in_script_prompt_and_metadata(self):
         from app.models.schema import ScriptGenerationRequest
         from app.services.script_generator import ScriptGeneratorService

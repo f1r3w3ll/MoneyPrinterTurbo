@@ -85,6 +85,29 @@ class ScriptGeneratorService:
 
         return script, model, generation_time, tokens
 
+    def generate_editorial_json(self, provider: str, prompt: str) -> str:
+        """Generate a small JSON editorial artifact with the configured LLM."""
+        provider = provider.value if isinstance(provider, LLMProvider) else str(provider)
+        llm_config = self.llm_configs.get(provider, {})
+        if not llm_config or not llm_config.get("api_key"):
+            raise ValueError(f"LLM provider {provider} not configured or missing API key")
+        if not llm_config.get('enabled', True):
+            raise ValueError(f'O provedor {provider} está desabilitado nas configurações.')
+
+        generators = {
+            'openai': self._generate_openai,
+            'claude': self._generate_claude,
+            'gemini': self._generate_gemini,
+            'deepseek': self._generate_deepseek,
+            'kimi': self._generate_kimi,
+            'qwen': self._generate_qwen,
+        }
+        generator = generators.get(provider)
+        if not generator:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+        content, _, _ = generator(prompt, llm_config)
+        return content
+
     def _build_prompt(self, request: ScriptGenerationRequest) -> str:
         """Build LLM prompt for script generation"""
         # Calculate number of scenes if not provided

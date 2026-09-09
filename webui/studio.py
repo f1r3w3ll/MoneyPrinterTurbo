@@ -91,6 +91,14 @@ def _channel_profile_editor():
 def _brief_and_packaging(profile):
     st.subheader('1 · Pauta e embalagem')
     st.caption('Comece pela pergunta e pela promessa. Depois escolha uma embalagem que o roteiro realmente entrega.')
+    if generated := st.session_state.pop('generated_studio_brief', None):
+        st.session_state.studio_brief = generated
+        st.session_state.brief_topic = generated['topic']
+        st.session_state.brief_question = generated['central_question']
+        st.session_state.brief_thesis = generated['thesis']
+        st.session_state.brief_promise = generated['promise']
+        st.session_state.brief_goal = generated['goal']
+        st.session_state.brief_sources = generated['sources']
     prior = st.session_state.get('studio_brief', {})
     with st.expander('Definir pauta', expanded=True):
         topic = st.text_input('Tema do vídeo', value=prior.get('topic', ''), key='brief_topic')
@@ -99,6 +107,19 @@ def _brief_and_packaging(profile):
         promise = st.text_area('Promessa específica deste vídeo', value=prior.get('promise', profile.get('promise', '')), key='brief_promise')
         goal = st.selectbox('Objetivo', ['Descoberta', 'Busca', 'Retorno ao canal'], key='brief_goal')
         sources = st.text_area('Fontes, links ou notas para checagem', value=prior.get('sources', ''), key='brief_sources', placeholder='Registre hipóteses e referências antes de tratá-las como fatos.')
+        provider = st.selectbox('IA para gerar a pauta', ['openai', 'claude', 'gemini', 'deepseek', 'kimi', 'qwen'], key='brief_provider')
+        st.caption('A IA propõe uma pauta inicial com base no tema e na identidade editorial. Revise os fatos, fontes e a promessa antes de gerar o roteiro.')
+        if st.button('Gerar pauta com IA', key='generate_brief', type='secondary'):
+            if not topic.strip():
+                st.error('Informe o tema do vídeo antes de gerar a pauta.')
+            else:
+                with st.spinner('Estruturando a pauta…'):
+                    try:
+                        generated = editorial.generate_brief(topic, profile, provider)
+                        st.session_state.generated_studio_brief = generated
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(redact(explain_generation_error(provider, exc)))
         brief = {'topic': topic.strip(), 'central_question': question.strip(), 'thesis': thesis.strip(), 'promise': promise.strip(), 'goal': goal, 'sources': sources.strip()}
         st.session_state.studio_brief = brief
 

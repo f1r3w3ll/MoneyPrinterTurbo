@@ -214,3 +214,9 @@ O gerador original foi preservado.
 - Metadados editoriais acompanham a sessão, o rascunho, a exportação do roteiro
   e os parâmetros de produção. A tela de revisão mostra uma checagem de
   promessa/gancho/payoff quando esses dados existem.
+- A pauta tem o botão `Gerar pauta com IA`. Ele usa o mesmo provider de roteiro
+  configurado pelo usuário e preenche pergunta central, tese, promessa,
+  objetivo e direções de fontes a partir do tema e da identidade editorial.
+  A resposta é apenas uma proposta editável: a interface orienta revisar fatos,
+  fontes e promessa antes de gerar roteiro. Erro de JSON do provider não altera
+  os campos da pauta.
