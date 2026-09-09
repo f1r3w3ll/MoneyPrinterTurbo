@@ -389,3 +389,110 @@ upload_post_auto_upload = false
 
 # YouTube Shorts privacy status (options: "public", "unlisted", "private")
 upload_post_youtube_privacy_status = "public"
+
+
+######################################################################################################
+# Long-Form Video Configuration (15-30 minute YouTube videos)
+######################################################################################################
+
+[image_generation]
+# Default provider for AI image generation: dalle, sd (Stable Diffusion), midjourney
+default_provider = "dalle"
+
+# DALL-E Configuration (uses existing openai_api_key from [app] section)
+dalle_model = "gpt-image-1"
+dalle_quality = "medium"      # low, medium, high or auto
+dalle_size = "1024x1024"      # 1024x1024, 1024x1536, 1536x1024 or auto
+
+# Stable Diffusion Configuration (via Replicate API or local deployment)
+sd_api_key = ""
+sd_model = "stability-ai/sdxl"
+sd_base_url = "https://api.replicate.com"
+
+# Midjourney Configuration (via unofficial API wrapper)
+# Note: Midjourney doesn't have an official API yet
+midjourney_api_key = ""
+midjourney_base_url = ""
+
+[premium_tts]
+# ElevenLabs TTS (Recommended - highest quality, most natural voices)
+# Get your API key at https://elevenlabs.io/app/settings/api-keys
+elevenlabs_api_key = ""
+elevenlabs_model = "eleven_multilingual_v2"
+elevenlabs_voice_id = ""      # Get voice IDs from https://elevenlabs.io/app/voice-library
+
+# Play.ht TTS
+# Get your credentials at https://play.ht/app/api-access
+playht_api_key = ""
+playht_user_id = ""
+playht_voice = ""
+
+# Murf.ai TTS
+# Get your API key at https://murf.ai/resources/api-documentation
+murf_api_key = ""
+murf_voice_id = ""
+
+[longform]
+# Maximum video duration in seconds (30 minutes = 1800 seconds)
+max_video_duration = 1800
+
+# Chunk size for progressive processing in seconds (5 minutes = 300 seconds)
+# Smaller chunks use less memory but may take longer
+default_chunk_size = 300
+
+# Enable checkpointing for resumable tasks
+enable_checkpoint = true
+
+# Directory for storing checkpoint files
+checkpoint_dir = "./storage/checkpoints"
+
+# Temporary directory for intermediate files
+temp_dir = "./storage/temp"
+
+# ============================================================================
+# LLM Configuration for Script Generation
+# ============================================================================
+# Configure multiple LLM providers for automated script generation
+# You can set API keys here or update them via the /api/v1/llm-config endpoint
+# Only configured providers (with api_key set) will be available for selection
+
+[llm.openai]
+# OpenAI API - https://platform.openai.com/api-keys
+api_key = ""
+model = "gpt-4o"               # gpt-4o, gpt-4o-mini, gpt-4-turbo
+# base_url = ""                # Optional: custom base URL (e.g., for Azure OpenAI)
+enabled = true
+
+[llm.claude]
+# Anthropic Claude API - https://console.anthropic.com/settings/keys
+api_key = ""
+model = "claude-3-5-sonnet-20241022"  # claude-3-5-sonnet, claude-3-opus, claude-3-haiku
+# base_url = ""                # Optional: custom base URL
+enabled = true
+
+[llm.gemini]
+# Google Gemini API - https://aistudio.google.com/app/apikey
+api_key = ""
+model = "gemini-2.0-flash-exp"    # gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash
+enabled = true
+
+[llm.deepseek]
+# DeepSeek API - https://platform.deepseek.com/api_keys
+api_key = ""
+model = "deepseek-chat"        # deepseek-chat, deepseek-coder
+base_url = "https://api.deepseek.com"
+enabled = true
+
+[llm.kimi]
+# Moonshot Kimi API - https://platform.moonshot.cn/console/api-keys
+api_key = ""
+model = "moonshot-v1-128k"     # moonshot-v1-8k, moonshot-v1-32k, moonshot-v1-128k
+base_url = "https://api.moonshot.cn/v1"
+enabled = true
+
+[llm.qwen]
+# Alibaba Qwen API - https://dashscope.console.aliyun.com/apiKey
+api_key = ""
+model = "qwen-max"             # qwen-max, qwen-plus, qwen-turbo
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+enabled = true

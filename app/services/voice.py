@@ -202,13 +202,18 @@ def is_mimo_voice(voice_name: str):
 
 def is_no_voice(voice_name: str | None) -> bool:
     """
-    判断用户是否明确选择了“无配音”模式。
+    判断用户是否明确选择了"无配音"模式。
 
     这里刻意不把空字符串当成无配音：空 voice 更可能是配置损坏、旧版本
     WebUI 状态丢失或接口参数缺失。只有明确的 sentinel 才进入静音分支，
     这样可以避免把真实错误伪装成正常生成。
     """
     return str(voice_name or "").strip().lower() in _NO_VOICE_ALIASES
+
+
+def is_elevenlabs_voice(voice_name: str) -> bool:
+    """Check if voice name indicates ElevenLabs TTS provider"""
+    return voice_name.startswith("elevenlabs:")
 
 
 def estimate_no_voice_duration(text: str) -> float:
@@ -316,6 +321,16 @@ def tts(
             text=text,
             audio_duration_seconds=duration_seconds,
         )
+
+    if is_elevenlabs_voice(voice_name):
+        # Format: elevenlabs:voice_id
+        parts = voice_name.split(":")
+        if len(parts) >= 2:
+            voice_id = parts[1]
+            return elevenlabs_tts(text, voice_id, voice_file, voice_rate, voice_volume)
+        else:
+            logger.error(f"Invalid ElevenLabs voice name format: {voice_name}")
+            return None
 
     if is_azure_v2_voice(voice_name):
         return azure_tts_v2(text, voice_name, voice_file)
@@ -825,6 +840,91 @@ def siliconflow_tts(
             logger.error(f"siliconflow tts failed: {str(e)}")
 
     return None
+
+
+def elevenlabs_tts(
+    text: str,
+    voice_id: str,
+    voice_file: str,
+    voice_rate: float = 1.0,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """
+    Generate TTS using ElevenLabs API - highest quality, most natural voices
+
+    Args:
+        text: Text to convert to speech
+        voice_id: ElevenLabs voice ID
+        voice_file: Output audio file path
+        voice_rate: Speech rate (0.5 to 2.0, 1.0 is normal)
+        voice_volume: Volume (not used by ElevenLabs directly)
+
+    Returns:
+        SubMaker object with subtitle timeline, or None on failure
+    """
+    try:
+        from elevenlabs import VoiceSettings
+        from elevenlabs.client import ElevenLabs
+    except ImportError:
+        logger.error(
+            "ElevenLabs package not installed. Install with: pip install elevenlabs"
+        )
+        return None
+
+    api_key = config.premium_tts.get("elevenlabs_api_key")
+    if not api_key:
+        logger.error("ElevenLabs API key not configured in [premium_tts] section")
+        return None
+
+    model = config.premium_tts.get("elevenlabs_model", "eleven_multilingual_v2")
+
+    logger.info(f"generating audio using ElevenLabs: voice_id={voice_id}, model={model}")
+
+    try:
+        client = ElevenLabs(api_key=api_key)
+
+        # Clamp voice_rate to valid range (0.5 to 2.0)
+        speed = max(0.5, min(2.0, voice_rate))
+
+        # Generate audio
+        audio_generator = client.text_to_speech.convert(
+            voice_id=voice_id,
+            text=text,
+            model_id=model,
+            voice_settings=VoiceSettings(
+                stability=0.5,
+                similarity_boost=0.75,
+                speed=speed,
+            ),
+        )
+
+        # Save to file
+        ensure_file_path_exists(voice_file)
+        with open(voice_file, "wb") as f:
+            for chunk in audio_generator:
+                f.write(chunk)
+
+        # Verify file was created
+        if not os.path.exists(voice_file) or os.path.getsize(voice_file) == 0:
+            logger.error(f"ElevenLabs TTS output file is missing or empty: {voice_file}")
+            return None
+
+        logger.info(f"ElevenLabs audio generated successfully: {voice_file}")
+
+        # ElevenLabs doesn't provide word-level timestamps
+        # Use fallback subtitle generation
+        sub_maker = ensure_legacy_submaker_fields(SubMaker())
+        audio_duration = get_audio_duration(voice_file)
+
+        return populate_legacy_submaker_with_full_text(
+            sub_maker=sub_maker,
+            text=text,
+            audio_duration_seconds=audio_duration,
+        )
+
+    except Exception as e:
+        logger.error(f"ElevenLabs TTS failed: {str(e)}")
+        return None
 
 
 def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker, None]:

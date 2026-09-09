@@ -1,6 +1,7 @@
 import os
 import shutil
 import socket
+import threading
 
 import toml
 from loguru import logger
@@ -147,13 +148,24 @@ def load_config():
     return _config_
 
 
+_save_lock = threading.RLock()
+
+
 def save_config():
-    with open(config_file, "w", encoding="utf-8") as f:
-        _cfg["app"] = app
-        _cfg["azure"] = azure
-        _cfg["siliconflow"] = siliconflow
-        _cfg["ui"] = ui
-        f.write(toml.dumps(_cfg))
+    with _save_lock:
+        for name in ('app', 'azure', 'siliconflow', 'ui', 'longform',
+                     'image_generation', 'premium_tts', 'llm', 'youtube', 'analytics'):
+            _cfg[name] = globals()[name]
+        temporary = config_file + '.tmp'
+        try:
+            with open(temporary, "w", encoding="utf-8") as f:
+                f.write(toml.dumps(_cfg))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temporary, config_file)
+        finally:
+            if os.path.exists(temporary):
+                os.remove(temporary)
 
 
 _cfg = load_config()
@@ -162,6 +174,15 @@ whisper = _cfg.get("whisper", {})
 proxy = _cfg.get("proxy", {})
 azure = _cfg.get("azure", {})
 siliconflow = _cfg.get("siliconflow", {})
+# Seções usadas pelo pipeline longform, upload no YouTube e analytics.
+# Antes só eram acessíveis via _cfg, o que quebrava os call sites com
+# AttributeError quando a seção não existia no arquivo de configuração.
+longform = _cfg.get("longform", {})
+image_generation = _cfg.get("image_generation", {})
+premium_tts = _cfg.get("premium_tts", {})
+llm = _cfg.get("llm", {})
+youtube = _cfg.get("youtube", {})
+analytics = _cfg.get("analytics", {})
 ui = _cfg.get(
     "ui",
     {

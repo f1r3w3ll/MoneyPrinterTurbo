@@ -42,6 +42,11 @@ st.set_page_config(
 )
 
 
+if st.sidebar.radio('Área de trabalho', ['Estúdio de vídeos longos', 'Gerador original']) == 'Estúdio de vídeos longos':
+    from webui.studio import render
+    render()
+    st.stop()
+
 streamlit_style = """
 <style>
 h1 {

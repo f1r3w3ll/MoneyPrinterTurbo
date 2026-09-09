@@ -1,6 +1,6 @@
 import warnings
 from enum import Enum
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pydantic
 from pydantic import BaseModel, Field
@@ -380,3 +380,252 @@ class VideoMaterialUploadResponse(BaseResponse):
                 },
             },
         }
+
+
+######################################################################################################
+# Long-Form Video Models
+######################################################################################################
+
+
+class SceneInfo(BaseModel):
+    """Individual scene in structured script for long-form videos"""
+    index: int
+    narration: str  # Text for TTS narration
+    image_prompt: str  # Prompt for AI image generation (DALL-E, SD, etc.)
+    duration_seconds: Optional[float] = None  # Override auto-calculated duration
+    transition: Optional[str] = "fade"  # fade, slide, zoom, none
+
+
+class StructuredScript(BaseModel):
+    """Complete structured script for long-form video (15-30 minutes)"""
+    title: str
+    description: str
+    total_duration_estimate: float  # 900-1800 seconds (15-30 min)
+    scenes: List[SceneInfo]
+    metadata: Optional[dict] = {}
+
+
+class LongFormVideoParams(VideoParams):
+    """Extended parameters for long-form video generation"""
+    model_config = pydantic.ConfigDict(validate_default=True)
+    # Script handling
+    structured_script: Optional[StructuredScript] = None
+    use_structured_script: bool = False
+
+    # Image generation
+    image_provider: Optional[str] = "dalle"  # dalle, sd, midjourney
+    image_quality: Optional[str] = "standard"  # standard, hd
+    image_size: Optional[str] = "1024x1024"
+
+    # Premium TTS
+    premium_tts_provider: Optional[str] = None  # elevenlabs, playht, murf
+
+    # Thumbnail
+    thumbnail_style: Optional[str] = "hybrid"  # hybrid, ai-only, template
+    thumbnail_text: Optional[str] = ""
+
+    # Processing optimization
+    enable_checkpointing: bool = True
+    chunk_size_minutes: Optional[float] = 5.0
+    max_scene_duration: Optional[float] = 30.0
+
+
+class CheckpointState(BaseModel):
+    """State for resumable long-form video tasks"""
+    task_id: str
+    current_phase: str  # script, audio, images, composition
+    completed_scenes: List[int]
+    generated_files: dict
+    timestamp: float
+    error_count: int = 0
+
+
+# LLM Configuration and Script Generation Models
+
+class LLMProvider(str, Enum):
+    """Supported LLM providers for script generation"""
+    OPENAI = "openai"
+    CLAUDE = "claude"
+    GEMINI = "gemini"
+    DEEPSEEK = "deepseek"
+    KIMI = "kimi"
+    QWEN = "qwen"
+
+
+class LLMConfig(BaseModel):
+    """Configuration for a single LLM provider"""
+    provider: LLMProvider
+    api_key: str
+    base_url: Optional[str] = None
+    model: Optional[str] = None
+    enabled: bool = True
+
+
+class LLMConfigUpdate(BaseModel):
+    """Update LLM provider configurations"""
+    configs: List[LLMConfig]
+
+
+class ScriptGenerationRequest(BaseModel):
+    """Request to generate a structured script using LLM"""
+    topic: str  # Main topic/subject for the video
+    duration_minutes: float = 20.0  # Target duration (15-30 min)
+    num_scenes: Optional[int] = None  # Auto-calculate if not provided
+    language: str = "pt-BR"  # Language for narration
+    style: Optional[str] = "educational"  # educational, documentary, entertaining
+    target_audience: Optional[str] = None  # e.g., "general public", "tech enthusiasts"
+
+    # LLM selection
+    llm_provider: LLMProvider = LLMProvider.OPENAI
+
+    # Advanced options
+    keywords: Optional[List[str]] = []
+    reference_urls: Optional[List[str]] = []
+    custom_instructions: Optional[str] = None
+
+
+class ScriptGenerationResponse(BaseModel):
+    """Response containing generated structured script"""
+    script: StructuredScript
+    llm_provider: str
+    model_used: str
+    generation_time_seconds: float
+    token_count: Optional[int] = None
+
+
+######################################################################################################
+# YouTube Upload Models
+######################################################################################################
+
+
+class YouTubeExchangeCodeRequest(BaseModel):
+    """Request to exchange an OAuth authorization code for a token"""
+    code: str
+
+
+class YouTubeUploadRequest(BaseModel):
+    """Request to upload a finished task video to YouTube"""
+    task_id: str
+    title: str
+    description: str = ""
+    tags: List[str] = []
+    privacy_status: str = "private"  # private, unlisted, public
+    category_id: str = "27"  # 27 = Education
+    thumbnail_path: Optional[str] = None  # opcional, ex.: thumbnail.jpg dentro da tarefa
+
+
+class YouTubeUploadRecord(BaseModel):
+    """Registro de um upload no histórico (storage/youtube/uploads.jsonl)"""
+    upload_id: str
+    task_id: Optional[str] = None
+    video_id: Optional[str] = None
+    title: str = ""
+    url: Optional[str] = None
+    status: str = "pending"  # pending, uploading, completed, failed
+    error: Optional[str] = None
+    timestamp: float = 0.0
+
+
+######################################################################################################
+# SEO Models
+######################################################################################################
+
+
+class SEOAnalyzeRequest(BaseModel):
+    """Request to analyze SEO of video metadata"""
+    title: str
+    description: str = ""
+    keywords: List[str] = []
+    script_title: Optional[str] = None
+
+
+class SEOAnalyzeResponse(BaseModel):
+    """Resultado da análise SEO heurística"""
+    score: int  # 0-100
+    checks: Dict[str, Any] = {}
+    suggestions: List[str] = []
+
+
+class SEOGenerateRequest(BaseModel):
+    """Request to generate SEO metadata using LLM"""
+    topic: str
+    script: Optional[str] = None
+    llm_provider: Optional[LLMProvider] = None
+
+
+class SEOGenerateResponse(BaseModel):
+    """Metadata SEO gerada pelo LLM"""
+    titles: List[str] = []
+    description: str = ""
+    tags: List[str] = []
+    hashtags: List[str] = []
+    analysis: Optional[SEOAnalyzeResponse] = None
+
+
+######################################################################################################
+# Script Translation Models
+######################################################################################################
+
+
+class TranslateScriptRequest(BaseModel):
+    """Request to translate a structured script to another language"""
+    script: StructuredScript
+    target_language: str
+    llm_provider: Optional[LLMProvider] = None
+
+
+######################################################################################################
+# Batch Processing Models
+######################################################################################################
+
+
+class BatchVideoItem(BaseModel):
+    """Item de um lote de vídeos longform"""
+    # Modo 1: informar topic para gerar o roteiro via LLM antes de enfileirar
+    topic: Optional[str] = None
+    duration_minutes: float = 20.0
+    language: str = "pt-BR"
+    style: Optional[str] = "educational"
+    llm_provider: Optional[LLMProvider] = None
+    # Modo 2: parâmetros completos (ex.: com structured_script pronto)
+    params: Optional[LongFormVideoParams] = None
+
+
+class BatchVideoRequest(BaseModel):
+    """Request to create a batch of long-form video tasks"""
+    batch_id: Optional[str] = None
+    requests: List[BatchVideoItem]
+
+
+class BatchTaskStatus(BaseModel):
+    """Estado de uma tarefa dentro de um lote"""
+    task_id: str
+    state: Optional[int] = None
+    progress: Optional[int] = None
+
+
+class BatchStatusResponse(BaseModel):
+    """Status agregado de um lote"""
+    batch_id: str
+    task_ids: List[str]
+    tasks: List[BatchTaskStatus]
+    status: str = "processing"  # processing, completed, failed
+    created_at: float = 0.0
+
+
+######################################################################################################
+# Analytics Models
+######################################################################################################
+
+
+class AnalyticsResponse(BaseModel):
+    """Métricas agregadas de uso do sistema"""
+    total_tasks: int = 0
+    successful_tasks: int = 0
+    failed_tasks: int = 0
+    success_rate: float = 0.0
+    avg_duration_seconds: float = 0.0
+    by_provider: Dict[str, int] = {}
+    by_task_type: Dict[str, int] = {}
+    estimated_costs_usd: Dict[str, float] = {}
+    videos_per_day: Dict[str, int] = {}

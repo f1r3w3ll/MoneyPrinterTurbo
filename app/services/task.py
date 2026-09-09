@@ -311,7 +311,85 @@ def generate_final_videos(
     return final_video_paths, combined_video_paths
 
 
+def _summarize_params(params) -> dict:
+    """Extrai um resumo enxuto dos parâmetros para o analytics."""
+    summary = {}
+    for attr in (
+        "video_subject",
+        "video_source",
+        "video_language",
+        "voice_name",
+        "image_provider",
+        "image_quality",
+        "premium_tts_provider",
+    ):
+        value = getattr(params, attr, None)
+        if value:
+            summary[attr] = value
+    return summary
+
+
+def _record_task_analytics(task_id, params, result, duration, task_type, error=None):
+    """Registra a tarefa no analytics, sem nunca quebrar a execução."""
+    try:
+        from app.services import analytics
+
+        params_summary = _summarize_params(params)
+        params_summary["task_type"] = task_type
+
+        result_summary = {}
+        if isinstance(result, dict):
+            if result.get("videos"):
+                result_summary["videos"] = result["videos"]
+            if result.get("video"):
+                result_summary["videos"] = [result["video"]]
+            if result.get("video"):
+                result_summary["video"] = result["video"]
+            if result.get("images"):
+                result_summary["images"] = result["images"]
+            if result.get("audio_chunks"):
+                result_summary["audio_files"] = result["audio_chunks"]
+            if result.get("audio_duration"):
+                result_summary["audio_duration"] = result["audio_duration"]
+            if result.get("token_count"):
+                result_summary["token_count"] = result["token_count"]
+
+        success = error is None and result is not None
+        analytics.record_task(
+            task_id=task_id,
+            params_summary=params_summary,
+            result=result_summary,
+            duration_seconds=duration,
+            success=success,
+            error=error,
+        )
+    except Exception as exc:
+        logger.warning(f"analytics: falha ao registrar tarefa {task_id}: {exc}")
+
+
 def start(task_id, params: VideoParams, stop_at: str = "video"):
+    """Wrapper que mede duração e registra analytics ao final da tarefa."""
+    import time
+
+    started_at = time.time()
+    result = None
+    error = None
+    try:
+        result = _start(task_id, params, stop_at)
+        if result is None:
+            error = "task failed"
+        return result
+    except Exception as exc:
+        error = str(exc)
+        raise
+    finally:
+        _record_task_analytics(
+            task_id, params, result, time.time() - started_at,
+            task_type="short", error=error,
+        )
+
+
+def _start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
@@ -468,6 +546,35 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
     )
     return kwargs
+
+
+######################################################################################################
+# Long-Form Video Pipeline (15-30 minutes)
+######################################################################################################
+
+
+def start_longform(task_id: str, params, stop_at: str = "complete"):
+    """Run the shared complete pipeline for programmatic callers."""
+    import time
+    from app.services.longform_pipeline import run
+    from app.services.studio_settings import redact
+    started = time.time()
+    result = None
+    error = None
+    try:
+        def report(phase, progress):
+            sm.state.update_task(task_id, progress=progress, phase=phase)
+        result = run(task_id, params, utils.task_dir(task_id), report=report, stop_at=stop_at)
+        sm.state.update_task(task_id, state=const.TASK_STATE_COMPLETE, progress=100,
+                            videos=[result['video']] if result.get('video') else [],
+                            thumbnail=result.get('thumbnail'))
+        return result
+    except Exception as exc:
+        error = redact(exc)
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED, error=error)
+        return None
+    finally:
+        _record_task_analytics(task_id, params, result, time.time() - started, task_type='longform', error=error)
 
 
 if __name__ == "__main__":

@@ -1234,3 +1234,297 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
         valid_materials.append(material)
 
     return valid_materials
+
+
+######################################################################################################
+# Long-Form Video Composition (15-30 minutes)
+######################################################################################################
+
+
+def compose_longform_video(
+    task_id: str,
+    script,  # StructuredScript
+    images: dict,  # scene_index -> image_path
+    audio_chunks: list,  # List of audio file paths
+    params,  # LongFormVideoParams
+    output_path: str
+) -> str:
+    """
+    Compose long-form video with memory-efficient progressive encoding
+
+    Strategy:
+    1. Process scenes in chunks (5 minutes)
+    2. Convert images to video clips
+    3. Add audio per chunk
+    4. Encode each chunk to temp file
+    5. Concatenate chunks with FFmpeg (no re-encoding)
+    6. Progressive cleanup
+
+    Args:
+        task_id: Task identifier
+        script: StructuredScript object
+        images: Dictionary mapping scene_index to image_path
+        audio_chunks: List of audio file paths
+        params: LongFormVideoParams
+        output_path: Path for final video
+
+    Returns:
+        Path to final video file
+    """
+    from moviepy.editor import concatenate_audioclips, AudioFileClip
+    import gc
+
+    logger.info(f"\n\n## Composing long-form video: {len(script.scenes)} scenes")
+
+    # Group scenes by audio chunks
+    scenes_per_chunk = _distribute_scenes_to_audio_chunks(script.scenes, len(audio_chunks))
+
+    chunk_files = []
+    task_dir = utils.task_dir(task_id)
+
+    try:
+        # Process each chunk
+        for chunk_idx, scene_batch in enumerate(scenes_per_chunk):
+            if not scene_batch:
+                continue
+
+            logger.info(f"Processing chunk {chunk_idx + 1}/{len(audio_chunks)}")
+
+            # Get audio for this chunk
+            audio_file = audio_chunks[chunk_idx] if chunk_idx < len(audio_chunks) else None
+
+            # Compose single chunk
+            chunk_file = _compose_single_longform_chunk(
+                task_dir=task_dir,
+                chunk_idx=chunk_idx,
+                scenes=scene_batch,
+                images=images,
+                audio_file=audio_file,
+                params=params
+            )
+
+            if chunk_file:
+                chunk_files.append(chunk_file)
+
+            # Explicit memory cleanup
+            gc.collect()
+
+        if not chunk_files:
+            logger.error("No chunks were successfully generated")
+            return None
+
+        # Concatenate all chunks with FFmpeg (no re-encoding)
+        logger.info(f"Concatenating {len(chunk_files)} chunks into final video")
+        final_video = _concat_chunks_ffmpeg(chunk_files, output_path)
+
+        # Cleanup temp chunk files
+        for chunk_file in chunk_files:
+            if os.path.exists(chunk_file):
+                try:
+                    os.remove(chunk_file)
+                except Exception as e:
+                    logger.warning(f"Failed to remove temp chunk: {e}")
+
+        logger.success(f"Long-form video composed successfully: {final_video}")
+        return final_video
+
+    except Exception as e:
+        logger.error(f"Long-form video composition failed: {e}")
+        # Cleanup on failure
+        for chunk_file in chunk_files:
+            if os.path.exists(chunk_file):
+                try:
+                    os.remove(chunk_file)
+                except:
+                    pass
+        return None
+
+
+def _distribute_scenes_to_audio_chunks(scenes: list, num_chunks: int) -> list:
+    """
+    Distribute scenes across audio chunks evenly
+
+    Args:
+        scenes: List of SceneInfo objects
+        num_chunks: Number of audio chunks
+
+    Returns:
+        List of scene batches (one per chunk)
+    """
+    if num_chunks == 0:
+        return []
+
+    scenes_per_chunk = len(scenes) // num_chunks
+    remainder = len(scenes) % num_chunks
+
+    result = []
+    start = 0
+
+    for i in range(num_chunks):
+        # Distribute remainder scenes across first chunks
+        chunk_size = scenes_per_chunk + (1 if i < remainder else 0)
+        end = start + chunk_size
+        result.append(scenes[start:end])
+        start = end
+
+    return result
+
+
+def _compose_single_longform_chunk(
+    task_dir: str,
+    chunk_idx: int,
+    scenes: list,
+    images: dict,
+    audio_file: str,
+    params
+) -> str:
+    """
+    Compose a single 5-minute chunk
+
+    Args:
+        task_dir: Task directory
+        chunk_idx: Chunk index
+        scenes: List of SceneInfo for this chunk
+        images: Dictionary of scene_index -> image_path
+        audio_file: Audio file for this chunk
+        params: Video parameters
+
+    Returns:
+        Path to encoded chunk file
+    """
+    from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip, CompositeVideoClip
+
+    logger.info(f"Composing chunk {chunk_idx} with {len(scenes)} scenes")
+
+    clips = []
+
+    try:
+        # Convert each image to video clip
+        for scene in scenes:
+            if scene.index not in images:
+                logger.warning(f"Image not found for scene {scene.index}, skipping")
+                continue
+
+            image_path = images[scene.index]
+            duration = scene.duration_seconds or 10.0  # Default 10 seconds
+
+            # Create image clip with zoom effect (Ken Burns)
+            clip = ImageClip(image_path).with_duration(duration)
+
+            # Simple zoom effect
+            zoom_clip = clip.resized(lambda t: 1 + 0.2 * (t / duration))
+
+            clips.append(zoom_clip)
+
+        if not clips:
+            logger.error(f"No valid clips for chunk {chunk_idx}")
+            return None
+
+        # Concatenate all clips for this chunk
+        combined_clip = concatenate_videoclips(clips, method="compose")
+
+        # Add audio if available
+        if audio_file and os.path.exists(audio_file):
+            audio_clip = AudioFileClip(audio_file)
+            combined_clip = combined_clip.with_audio(audio_clip)
+
+        # Get video aspect ratio
+        width, height = params.video_aspect.to_resolution()
+
+        # Resize to target resolution
+        combined_clip = combined_clip.resized((width, height))
+
+        # Encode chunk to file
+        chunk_output = os.path.join(task_dir, f"chunk-{chunk_idx}.mp4")
+
+        combined_clip.write_videofile(
+            chunk_output,
+            codec="libx264",
+            fps=30,
+            audio_codec="aac",
+            audio_bitrate="192k",
+            threads=params.n_threads or 2,
+            logger=None
+        )
+
+        # Close all clips to free memory
+        combined_clip.close()
+        for clip in clips:
+            close_clip(clip)
+
+        logger.success(f"Chunk {chunk_idx} encoded: {chunk_output}")
+        return chunk_output
+
+    except Exception as e:
+        logger.error(f"Failed to compose chunk {chunk_idx}: {e}")
+        # Cleanup
+        for clip in clips:
+            try:
+                close_clip(clip)
+            except:
+                pass
+        return None
+
+
+def _concat_chunks_ffmpeg(chunk_files: list, output_path: str) -> str:
+    """
+    Concatenate pre-encoded chunks using FFmpeg concat demuxer
+
+    Much faster than MoviePy (no re-encoding)
+
+    Args:
+        chunk_files: List of chunk file paths
+        output_path: Output file path
+
+    Returns:
+        Path to concatenated video
+    """
+    concat_list_file = output_path.replace(".mp4", "_concat_list.txt")
+
+    try:
+        # Write concat list file
+        with open(concat_list_file, "w", encoding="utf-8") as f:
+            for chunk_file in chunk_files:
+                # FFmpeg requires forward slashes even on Windows
+                escaped_path = _format_ffmpeg_concat_path(chunk_file)
+                f.write(f"file '{escaped_path}'\n")
+
+        # FFmpeg concat command
+        ffmpeg_binary = utils.get_ffmpeg_binary()
+        cmd = [
+            ffmpeg_binary,
+            "-f", "concat",
+            "-safe", "0",
+            "-i", concat_list_file,
+            "-c", "copy",  # No re-encoding
+            "-y",  # Overwrite output file
+            output_path
+        ]
+
+        logger.info(f"Running FFmpeg concat: {' '.join(cmd)}")
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False
+        )
+
+        if result.returncode != 0:
+            logger.error(f"FFmpeg concat failed: {result.stderr}")
+            return None
+
+        # Cleanup concat list file
+        if os.path.exists(concat_list_file):
+            os.remove(concat_list_file)
+
+        return output_path
+
+    except Exception as e:
+        logger.error(f"Failed to concatenate chunks: {e}")
+        if os.path.exists(concat_list_file):
+            try:
+                os.remove(concat_list_file)
+            except:
+                pass
+        return None

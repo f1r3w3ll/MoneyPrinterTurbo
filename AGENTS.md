@@ -1,0 +1,195 @@
+# Contexto de continuidade com Codex
+
+Registro inicial: 2026-09-07. Este arquivo consolida a leitura da documentação
+local e uma conferência estática dos pontos principais no código. Não constitui
+validação de execução ou certificação de produção.
+
+## Direção do trabalho
+
+- O usuário decidiu continuar o desenvolvimento com Codex, substituindo Claude
+  como assistente de desenvolvimento. Trabalhar neste projeto, `finback`.
+- Comunicar-se em português brasileiro.
+- A decisão sobre o assistente não implica remover o provider Anthropic/Claude
+  do produto; isso depende de uma solicitação específica de mudança funcional.
+- Preservar alterações locais existentes. Na leitura inicial havia código
+  modificado e serviços/documentos ainda não rastreados pelo Git.
+- Não copiar ou expor credenciais de `config.toml` em documentação ou commits.
+
+## Objetivo e arquitetura
+
+Base: MoneyPrinterTurbo 1.3.0, gerador de vídeos curtos. A extensão pretende
+produzir vídeos de 15–30 minutos para YouTube, com roteiro estruturado,
+imagens por IA, narração, legendas, composição progressiva e thumbnail.
+Preservar o funcionamento do pipeline original ao evoluir a extensão.
+
+- Python: `>=3.11,<3.13`; runtime recomendado nos READMEs: 3.11.
+- Dependências principais: `pyproject.toml`; resolução: `uv.lock`.
+- Backend: FastAPI, Pydantic, controladores em `app/controllers/v1/`.
+- Interface existente: Streamlit em `webui/Main.py`; CLI: `cli.py`.
+- Vídeo: MoviePy 2.2.1, FFmpeg e Pillow.
+- Serviços originais: `llm.py`, `material.py`, `voice.py`, `subtitle.py`,
+  `video.py`, `task.py`, `state.py` e `upload_post.py`.
+- Extensão: `script_generator.py`, `script_parser.py`,
+  `image_generation.py`, `thumbnail.py`, `checkpoint.py` e alterações nos
+  modelos, controlador de vídeo, configuração e orquestração.
+- `analytics.py` já contém armazenamento JSONL e agregação de métricas;
+  sua presença não significa que o dashboard planejado esteja implementado.
+
+Fluxo long-form: roteiro → áudio → imagens → legendas → composição → thumbnail.
+Áudio é agrupado por aproximadamente 5.000 caracteres. A composição prevê
+blocos de cinco minutos e concatenação por FFmpeg. Checkpoints guardam a fase
+e os artefatos para retomada.
+
+## Contratos principais
+
+`StructuredScript` contém título, descrição, duração estimada e cenas.
+Cada `SceneInfo` contém índice, narração, prompt de imagem, duração opcional
+e transição. O parser valida 5–100 cenas, duração estimada de 900–1.800 segundos,
+narração de 10–2.000 caracteres, prompts de 3–1.000 caracteres e duração
+por cena de 3–60 segundos quando informada. Essas validações não comprovam
+a duração real do vídeo renderizado.
+
+Rotas da extensão sob `/api/v1`:
+
+- `POST /generate-script`
+- `POST /validate-script`
+- `GET /llm-config` e `POST /llm-config`
+- `POST /longform-videos`
+- `GET /checkpoint-status/{task_id}`
+- `POST /resume-task/{task_id}`
+
+Roteiro long-form usa `[llm.<provider>]`, com OpenAI, Claude, Gemini, DeepSeek,
+Kimi e Qwen. O pipeline original usa configurações em `[app]`.
+Imagens, TTS premium e processamento usam `[image_generation]`,
+`[premium_tts]` e `[longform]`.
+
+## Divergências verificadas na leitura inicial
+
+Tratar as declarações antigas de “completo”, “100% compatível” e “produção
+ready” como afirmações históricas ainda sujeitas a testes.
+
+1. `test/test_longform.py` existe localmente, mas não apareceu no inventário
+   padrão do Git/rg: conferir regras de ignore antes de concluir que falta
+   um arquivo. Contém 14 métodos de teste pytest, incluindo um placeholder
+   de thumbnail, em vez dos 15 testes anunciados. Não integra a seleção
+   de testes unittest do CI. Há testes originais em `test/services/`.
+2. `ImageGenerationService._generate_midjourney` termina em
+   `NotImplementedError`. Há implementação de chamadas para DALL-E e
+   Stable Diffusion, sem validação real das APIs nesta análise.
+3. Play.ht e Murf aparecem em configuração/modelos, mas não foi encontrada
+   implementação no serviço de voz. ElevenLabs tem implementação e depende
+   de um pacote não declarado diretamente em `pyproject.toml` ou
+   `requirements.txt`. A seleção efetiva ocorre por
+   `voice_name="elevenlabs:<voice_id>"`; o agrupamento de áudio não encaminha
+   `premium_tts_provider` para `voice.tts`.
+4. As rotas de criação e retomada passam `stop_at="video"`; o pipeline
+   retorna antes da fase de thumbnail nesse caminho.
+5. DALL-E lê `[app].openai_api_key`; salvar somente `[llm.openai].api_key`
+   pelo endpoint não configura a chave de imagens.
+6. `CheckpointManager.save_checkpoint` remove o arquivo anterior antes de
+   renomear o temporário. Existe uma janela sem checkpoint, apesar da
+   documentação descrever substituição atômica.
+7. O exemplo que considera HTTP 404 de checkpoint como conclusão é inadequado:
+   ausência de checkpoint não prova sucesso. Além disso, `utils.get_response`
+   monta um dicionário com campo `status`, sem definir por si só o status HTTP.
+   Conferir o estado da tarefa e os artefatos para verificar conclusão.
+8. A interface Streamlit original existe; falta sua integração long-form.
+   CI e publicação Docker já existem em `.github/workflows/`, embora a
+   memória antiga mencione CI/CD como trabalho futuro.
+9. Docker instala `requirements.txt`, que não inclui a dependência Anthropic
+   adicionada ao manifesto principal. O compose de release usa a imagem
+   upstream e não incorpora automaticamente as alterações locais da extensão.
+10. O README árabe ainda orienta instalar ImageMagick; READMEs inglês e chinês
+    explicam a migração para MoviePy 2/Pillow. Há instruções legadas também
+    nos arquivos de configuração e Docker.
+
+Custos, benchmarks, disponibilidade dos modelos e “servidor ativo em 8081”
+constantes nos documentos não foram verificados nesta análise. Não apresentá-los
+como dados atuais ou resultados medidos.
+
+## Execução e verificação
+
+Executar comandos na raiz de `finback`:
+
+```powershell
+uv sync --frozen
+uv run python main.py
+# Interface original, em execução separada:
+.\webui.bat
+```
+
+`listen_port` é uma chave no nível raiz do TOML; fallback do código: 8080.
+A documentação da extensão usa 8081. Streamlit usa normalmente 8501.
+Verificar configuração e processo reais antes de afirmar que estão ativos.
+
+Verificações usadas pelo CI existente:
+
+```powershell
+uv run python -m compileall app cli.py main.py webui test
+uv run python -X utf8 -m unittest test.services.test_state test.services.test_task test.services.test_schema test.services.test_webui_i18n
+```
+
+`test/README.md` documenta `unittest` e testes externos optativos via
+`MPT_RUN_INTEGRATION_TESTS=1`. A leitura inicial não executou testes,
+servidores, instalação de pacotes ou chamadas pagas de geração.
+
+## Documentação assimilada
+
+- `LONGFORM_VIDEO_DOCUMENTATION.md`: arquitetura, contratos, configuração,
+  exemplos, operação, roadmap e estimativas da extensão.
+- `LONGFORM_README.md`: início rápido e fluxo de uso.
+- `DEVELOPMENT_MEMORY.md`: requisitos, decisões e histórico declarado.
+- `PROJECT_SUMMARY.txt` e `FILES_CHANGELOG.md`: resumo e inventário declarado.
+- `README.md`, `README-en.md`, `README-ar.md`: produto original, instalação,
+  CLI/WebUI, materiais, vozes e troubleshooting; traduções divergem.
+- `test/README.md`, `.github/SECURITY.md`, templates e workflows.
+- `docs/voice-list.txt` e `docs/MoneyPrinterTurbo.ipynb`: catálogo local de
+  vozes e guia Colab com ambiente isolado, Streamlit e ngrok.
+- `config.example.toml`, manifestos, Dockerfiles, compose e licença MIT.
+
+## Atualização após aprovação do estúdio — 07/09/2026
+
+O usuário escolheu evoluir Streamlit e aprovou a proposta em
+`docs/superpowers/specs/2026-09-07-plataforma-streamlit-design.md`.
+Foi implementado `webui/studio.py`, com navegação no `webui/Main.py`, editor,
+rascunhos, configuração, produção, histórico, retomada e downloads.
+
+Os serviços atuais são `studio.py`, `studio_settings.py`, `studio_storage.py`,
+`studio_lease.py`, `longform_pipeline.py` e `longform_media.py`.
+Produções novas ficam em `storage/studio`; usam áudio por cena, legendas,
+composição em blocos e thumbnail. O bloqueio de produção é por arquivo/OS;
+as filas e configurações em memória são por processo. Consulte `docs/STUDIO.md`.
+
+As divergências acima são o registro inicial: checkpoint agora usa os.replace;
+rotas novas executam até thumbnail; DALL-E tem fallback de chave llm.openai;
+ElevenLabs/Replicate e Anthropic constam nas dependências; testes do estúdio
+foram adicionados ao CI. Midjourney, Play.ht e Murf continuam fora da interface.
+O gerador original foi preservado.
+
+## Atualização operacional e UX — 08/09/2026
+
+- A seleção de roteiro Claude não envia `base_url=None` ao SDK; erros de conexão
+  são apresentados com orientação específica. Os modelos padrão foram atualizados
+  para Claude Sonnet 4.6 e Gemini 3.5 Flash.
+- O parser normaliza a transição legada `cut` para `none` ao salvar roteiros.
+- Geração de imagens OpenAI usa `gpt-image-1`, com adaptação de qualidade e
+  tamanho para a API atual, incluindo respostas `b64_json`. Não reverter para
+  `dall-e-3`, pois esse modelo retornou erro de inexistência nesta instalação.
+- O Estúdio oferece quatro vozes predefinidas ElevenLabs e associa a voz ao
+  identificador de produção. A configuração continua exigindo uma chave
+  ElevenLabs válida; não registrar chaves nos arquivos do repositório.
+- A etapa de produção oferece proporção Retrato/Paisagem e configuração de
+  legendas: habilitação, fonte, posição, cores, tamanho, contorno e fundo.
+- O fluxo visual apresenta as etapas Roteiro, Revisão, Produção e Download.
+  Os controles de produção só aparecem após existir um roteiro e, quando uma
+  produção é enviada, a tela mostra barra de progresso atualizada a cada dois
+  segundos com a fase real do pipeline.
+- Novas produções usam pasta e MP4 identificáveis pelo título em formato slug,
+  data/hora e sufixo curto. IDs UUID anteriores continuam aceitos para retomar
+  produções antigas. Não renomear artefatos já concluídos automaticamente.
+- Uma produção real autorizada pelo usuário foi concluída com imagens, MP4 e
+  thumbnail; chamadas de imagem podem gerar custos. Houve também uma produção
+  antiga que falhou por usar `dall-e-3` e não deve ser retomada sem necessidade.
+- Verificação recente: compilação dos arquivos alterados e 25 testes de
+  `test_studio`, `test_studio_ui` e `test_longform_pipeline` passaram. Os testes
+  do MoviePy podem emitir `ResourceWarning` de leitores de áudio, sem falhar.

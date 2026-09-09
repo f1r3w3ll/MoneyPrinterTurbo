@@ -44,15 +44,19 @@ class TaskManager:
                 self.enqueue({"func": func, "args": args, "kwargs": kwargs})
 
     def execute_task(self, func: Callable, *args: Any, **kwargs: Any):
+        # Called under the queue lock; reserve before the worker can start.
+        self.current_tasks += 1
         thread = threading.Thread(
             target=self.run_task, args=(func, *args), kwargs=kwargs
         )
-        thread.start()
+        try:
+            thread.start()
+        except Exception:
+            self.current_tasks -= 1
+            raise
 
     def run_task(self, func: Callable, *args: Any, **kwargs: Any):
         try:
-            with self.lock:
-                self.current_tasks += 1
             func(*args, **kwargs)  # call the function here, passing *args and **kwargs.
         finally:
             self.task_done()

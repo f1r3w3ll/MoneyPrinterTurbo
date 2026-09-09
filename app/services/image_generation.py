@@ -1,0 +1,337 @@
+"""
+Image Generation Service for Long-Form Videos
+
+Supports multiple AI image generation providers:
+- DALL-E 3 (OpenAI)
+- Stable Diffusion (via Replicate or local)
+- Midjourney (via API wrapper)
+"""
+
+import os
+import time
+import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Tuple
+
+import requests
+from loguru import logger
+
+from app.config import config
+
+
+class ImageGenerationService:
+    """AI Image generation service with multi-provider support"""
+
+    def __init__(self, provider: str = None):
+        """
+        Initialize image generation service
+
+        Args:
+            provider: Provider name (dalle, sd, midjourney).
+                     If None, uses config default.
+        """
+        self.provider = provider or config.image_generation.get(
+            "default_provider", "dalle"
+        )
+        logger.info(f"Initialized ImageGenerationService with provider: {self.provider}")
+
+    def generate_image(
+        self,
+        prompt: str,
+        scene_id: str,
+        output_dir: str,
+        **kwargs,
+    ) -> str:
+        """
+        Generate a single image using the configured provider
+
+        Args:
+            prompt: Image description prompt
+            scene_id: Scene identifier (e.g., "scene-0")
+            output_dir: Directory to save the generated image
+            **kwargs: Provider-specific parameters
+
+        Returns:
+            Path to generated image file
+
+        Raises:
+            ValueError: If provider is unsupported
+            Exception: If image generation fails
+        """
+        os.makedirs(output_dir, exist_ok=True)
+
+        logger.info(f"Generating image for {scene_id} with {self.provider}")
+        logger.debug(f"Prompt: {prompt}")
+
+        if self.provider == "dalle":
+            return self._generate_dalle(prompt, scene_id, output_dir, **kwargs)
+        elif self.provider == "sd":
+            return self._generate_stable_diffusion(
+                prompt, scene_id, output_dir, **kwargs
+            )
+        elif self.provider == "midjourney":
+            return self._generate_midjourney(prompt, scene_id, output_dir, **kwargs)
+        else:
+            raise ValueError(f"Unsupported image provider: {self.provider}")
+
+    def batch_generate(
+        self,
+        prompts: List[Tuple[str, str]],  # [(scene_id, prompt)]
+        output_dir: str,
+        max_concurrent: int = 3,
+        max_retries: int = 3,
+    ) -> Dict[str, str]:
+        """
+        Generate multiple images with rate limiting and retry logic
+
+        Args:
+            prompts: List of (scene_id, prompt) tuples
+            output_dir: Directory to save generated images
+            max_concurrent: Maximum concurrent requests (for rate limiting)
+            max_retries: Maximum retry attempts per image
+
+        Returns:
+            Dictionary mapping scene_id to image_path
+        """
+        logger.info(
+            f"Batch generating {len(prompts)} images with "
+            f"max {max_concurrent} concurrent requests"
+        )
+
+        results = {}
+        failed = []
+
+        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+            # Submit all tasks
+            future_to_scene = {}
+            for scene_id, prompt in prompts:
+                future = executor.submit(
+                    self._generate_with_retry,
+                    prompt,
+                    scene_id,
+                    output_dir,
+                    max_retries,
+                )
+                future_to_scene[future] = scene_id
+
+            # Collect results as they complete
+            for future in as_completed(future_to_scene):
+                scene_id = future_to_scene[future]
+                try:
+                    image_path = future.result()
+                    results[scene_id] = image_path
+                    logger.info(
+                        f"Successfully generated image for {scene_id} "
+                        f"({len(results)}/{len(prompts)})"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to generate image for {scene_id}: {e}")
+                    failed.append(scene_id)
+
+        if failed:
+            logger.warning(f"Failed to generate {len(failed)} images: {failed}")
+
+        return results
+
+    def _generate_with_retry(
+        self,
+        prompt: str,
+        scene_id: str,
+        output_dir: str,
+        max_retries: int = 3,
+    ) -> str:
+        """
+        Generate image with exponential backoff retry
+
+        Args:
+            prompt: Image prompt
+            scene_id: Scene identifier
+            output_dir: Output directory
+            max_retries: Maximum retry attempts
+
+        Returns:
+            Path to generated image
+
+        Raises:
+            Exception: If all retries fail
+        """
+        for attempt in range(max_retries):
+            try:
+                return self.generate_image(prompt, scene_id, output_dir)
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{max_retries} failed for {scene_id}, "
+                        f"retrying in {wait_time}s: {e}"
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"All {max_retries} attempts failed for {scene_id}: {e}"
+                    )
+                    raise
+
+    def _generate_dalle(
+        self, prompt: str, scene_id: str, output_dir: str, **kwargs
+    ) -> str:
+        """
+        Generate image using DALL-E 3
+
+        Args:
+            prompt: Image description
+            scene_id: Scene identifier
+            output_dir: Output directory
+
+        Returns:
+            Path to generated image
+        """
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise ImportError(
+                "OpenAI package not installed. Install with: pip install openai"
+            )
+
+        api_key = (config.image_generation.get("openai_api_key") or
+                   config.app.get("openai_api_key") or config.llm.get("openai", {}).get("api_key"))
+        if not api_key:
+            raise ValueError("OpenAI API key not configured")
+
+        model = config.image_generation.get("dalle_model", "dall-e-3")
+        quality = kwargs.get("quality") or config.image_generation.get("dalle_quality", "standard")
+        size = kwargs.get("size") or config.image_generation.get("dalle_size", "1024x1024")
+        if model.startswith('gpt-image-'):
+            quality = {'standard': 'medium', 'hd': 'high'}.get(quality, quality)
+            size = {'1024x1792': '1024x1536', '1792x1024': '1536x1024'}.get(size, size)
+
+        client = OpenAI(api_key=api_key)
+
+        # Enhance prompt for better quality
+        enhanced_prompt = f"{prompt}, high quality, detailed, cinematic lighting"
+
+        logger.debug(f"DALL-E request: model={model}, quality={quality}, size={size}")
+
+        # Generate image
+        response = client.images.generate(
+            model=model, prompt=enhanced_prompt, size=size, quality=quality, n=1
+        )
+
+        # Download image
+        image_path = os.path.join(output_dir, f"{scene_id}.png")
+        image_data = response.data[0]
+        if getattr(image_data, 'b64_json', None):
+            img_data = base64.b64decode(image_data.b64_json)
+        else:
+            image_url = image_data.url
+            logger.debug(f"Downloading image from {image_url}")
+            download = requests.get(image_url, timeout=60)
+            download.raise_for_status()
+            img_data = download.content
+
+        with open(image_path, "wb") as f:
+            f.write(img_data)
+
+        # Verify file size
+        file_size = os.path.getsize(image_path)
+        if file_size < 1024:  # Less than 1KB is suspicious
+            raise ValueError(f"Generated image file is too small: {file_size} bytes")
+
+        logger.info(
+            f"DALL-E image generated successfully: {image_path} ({file_size} bytes)"
+        )
+
+        return image_path
+
+    def _generate_stable_diffusion(
+        self, prompt: str, scene_id: str, output_dir: str, **kwargs
+    ) -> str:
+        """
+        Generate image using Stable Diffusion (via Replicate)
+
+        Args:
+            prompt: Image description
+            scene_id: Scene identifier
+            output_dir: Output directory
+
+        Returns:
+            Path to generated image
+        """
+        try:
+            import replicate
+        except ImportError:
+            raise ImportError(
+                "Replicate package not installed. Install with: pip install replicate"
+            )
+
+        api_key = config.image_generation.get("sd_api_key")
+        if not api_key:
+            raise ValueError("Stable Diffusion API key not configured")
+
+        model = config.image_generation.get(
+            "sd_model", "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b"
+        )
+
+        logger.debug(f"Stable Diffusion request: model={model}")
+
+        # Generate image
+        output = replicate.Client(api_token=api_key).run(
+            model,
+            input={
+                "prompt": prompt,
+                "width": 1024,
+                "height": 1024,
+                "num_outputs": 1,
+            },
+        )
+
+        # Download image (output is a list of URLs)
+        image_url = output[0] if isinstance(output, list) else output
+        image_path = os.path.join(output_dir, f"{scene_id}.png")
+
+        logger.debug(f"Downloading image from {image_url}")
+        download = requests.get(str(image_url), timeout=60)
+        download.raise_for_status()
+        img_data = download.content
+
+        with open(image_path, "wb") as f:
+            f.write(img_data)
+
+        logger.info(f"Stable Diffusion image generated successfully: {image_path}")
+
+        return image_path
+
+    def _generate_midjourney(
+        self, prompt: str, scene_id: str, output_dir: str, **kwargs
+    ) -> str:
+        """
+        Generate image using Midjourney (via API wrapper)
+
+        Note: Midjourney doesn't have an official API yet.
+        This implementation assumes a third-party API wrapper.
+
+        Args:
+            prompt: Image description
+            scene_id: Scene identifier
+            output_dir: Output directory
+
+        Returns:
+            Path to generated image
+        """
+        api_key = config.image_generation.get("midjourney_api_key")
+        base_url = config.image_generation.get("midjourney_base_url")
+
+        if not api_key or not base_url:
+            raise ValueError("Midjourney API credentials not configured")
+
+        logger.warning(
+            "Midjourney integration uses unofficial API wrapper. "
+            "Results may vary."
+        )
+
+        # This is a placeholder implementation
+        # Actual implementation depends on the specific API wrapper being used
+        raise NotImplementedError(
+            "Midjourney integration not yet implemented. "
+            "Use DALL-E or Stable Diffusion instead."
+        )

@@ -31,6 +31,9 @@ dependencies = [
     "socksio==1.0.0",
     "pydub==0.25.1",
     "litellm==1.86.2",
+    "anthropic==0.47.0",
+    "elevenlabs>=2,<3",
+    "replicate>=1,<2",
 ]
 
 [project.optional-dependencies]

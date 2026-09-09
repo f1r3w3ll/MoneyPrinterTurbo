@@ -20,6 +20,10 @@ from app.models.schema import (
     AudioRequest,
     BgmRetrieveResponse,
     BgmUploadResponse,
+    LLMConfigUpdate,
+    ScriptGenerationRequest,
+    ScriptGenerationResponse,
+    StructuredScript,
     SubtitleRequest,
     TaskDeletionResponse,
     TaskQueryRequest,
@@ -27,7 +31,10 @@ from app.models.schema import (
     TaskResponse,
     TaskVideoRequest,
     VideoMaterialUploadResponse,
-    VideoMaterialRetrieveResponse
+    VideoMaterialRetrieveResponse,
+    LongFormVideoParams,
+    StructuredScript,
+    BaseResponse
 )
 from app.services import state as sm
 from app.services import task as tm
@@ -398,3 +405,312 @@ async def download_video(request: Request, file_path: str):
         filename=f"{filename}{extension}",
         media_type=f"video/{extension[1:]}",
     )
+
+
+######################################################################################################
+# Long-Form Video Endpoints (15-30 minutes)
+######################################################################################################
+
+
+@router.post(
+    "/longform-videos",
+    response_model=TaskResponse,
+    summary="Generate long-form YouTube video (15-30 minutes)",
+)
+def create_longform_video(background_tasks: BackgroundTasks, request: Request, body: LongFormVideoParams):
+    """Create a persistent production including the thumbnail."""
+    from app.services import studio
+    from app.services.studio_settings import redact
+    request_id = base.get_task_id(request)
+    try:
+        task_id = studio.submit(body)
+        return utils.get_response(200, {"task_id": task_id})
+    except TaskQueueFullError as exc:
+        raise HttpException(request_id, status_code=429, message=redact(exc))
+    except ValueError as exc:
+        raise HttpException(request_id, status_code=400, message=redact(exc))
+
+
+@router.post(
+    "/validate-script",
+    response_model=BaseResponse,
+    summary="Validate structured script for long-form video",
+)
+def validate_structured_script(
+    request: Request,
+    body: StructuredScript,
+):
+    """
+    Validate structured script before generating video
+
+    Checks:
+    - Scene count (5-100 scenes)
+    - Total duration (15-30 minutes)
+    - All prompts are non-empty
+    - Narration within TTS limits
+
+    Returns:
+        BaseResponse with validation results
+    """
+    from app.services.script_parser import ScriptParser
+
+    request_id = base.get_task_id(request)
+
+    try:
+        parser = ScriptParser()
+        parser.parse_json_script(body.model_dump())
+
+        response = {
+            "valid": True,
+            "message": "Script is valid",
+            "scene_count": len(body.scenes),
+            "estimated_duration": body.total_duration_estimate
+        }
+        return utils.get_response(200, response)
+
+    except ValueError as e:
+        response = {
+            "valid": False,
+            "errors": [str(e)]
+        }
+        return utils.get_response(400, response)
+    except Exception as e:
+        logger.error(f"Script validation error: {e}")
+        raise HttpException(request_id, status_code=500, message=str(e))
+
+
+@router.post(
+    "/resume-task/{task_id}",
+    response_model=TaskResponse,
+    summary="Resume interrupted long-form video task",
+)
+def resume_longform_task(background_tasks: BackgroundTasks, request: Request,
+                         task_id: str = Path(...), body: LongFormVideoParams = None):
+    """Resume using saved parameters; changed parameters require a new production."""
+    from app.services import studio
+    from app.services.studio_settings import redact
+    request_id = base.get_task_id(request)
+    try:
+        if body is not None:
+            saved = studio.get_production(task_id)
+            if studio._public_params(body) != saved['params']:
+                raise ValueError('Para alterar parâmetros, crie uma nova produção.')
+        studio.resume(task_id)
+        return utils.get_response(200, {"task_id": task_id})
+    except FileNotFoundError:
+        raise HttpException(request_id, status_code=404, message='Produção não encontrada.')
+    except TaskQueueFullError as exc:
+        raise HttpException(request_id, status_code=429, message=redact(exc))
+    except ValueError as exc:
+        raise HttpException(request_id, status_code=400, message=redact(exc))
+
+
+@router.get(
+    "/checkpoint-status/{task_id}",
+    response_model=BaseResponse,
+    summary="Get checkpoint status for a task",
+)
+def get_checkpoint_status(request: Request, task_id: str = Path(...)):
+    """Production status is authoritative; checkpoint absence is not completion."""
+    from app.services import studio
+    request_id = base.get_task_id(request)
+    try:
+        record = studio.get_production(task_id)
+        folder = studio._folder(task_id)
+        return utils.get_response(200, {
+            "has_checkpoint": (folder / f'{task_id}.checkpoint.json').is_file(),
+            "current_phase": record['phase'], "status": record['status'],
+            "progress": record['progress'], "error": record['error'],
+            "timestamp": record['updated_at'],
+        })
+    except (FileNotFoundError, ValueError):
+        raise HttpException(request_id, status_code=404, message='Produção não encontrada.')
+
+
+@router.get('/studio-productions/{task_id}')
+def get_studio_production(request: Request, task_id: str):
+    from app.services import studio
+    try:
+        return utils.get_response(200, studio.get_production(task_id))
+    except (FileNotFoundError, ValueError):
+        raise HttpException(base.get_task_id(request), status_code=404, message='Produção não encontrada.')
+
+
+@router.get('/studio-productions/{task_id}/files/{artifact}')
+def download_studio_artifact(request: Request, task_id: str, artifact: str):
+    from app.services import studio
+    try:
+        if artifact not in ('video', 'thumbnail', 'script', 'subtitles'):
+            raise ValueError('Artefato inválido.')
+        record = studio.get_production(task_id)
+        filename = record['artifacts'].get(artifact)
+        if not filename:
+            raise FileNotFoundError()
+        return FileResponse(filename, filename=pathlib.Path(filename).name)
+    except (FileNotFoundError, ValueError):
+        raise HttpException(base.get_task_id(request), status_code=404, message='Arquivo não encontrado.')
+
+
+# LLM Configuration and Script Generation Endpoints
+
+
+@router.post(
+    "/llm-config",
+    response_model=BaseResponse,
+    summary="Update LLM provider configurations",
+)
+def update_llm_config(
+    request: Request,
+    body: LLMConfigUpdate,
+):
+    """
+    Update API keys and configuration for LLM providers
+
+    Saves configurations to config.toml for persistence
+
+    Example:
+    ```json
+    {
+      "configs": [
+        {
+          "provider": "openai",
+          "api_key": "sk-...",
+          "model": "gpt-4o",
+          "enabled": true
+        },
+        {
+          "provider": "claude",
+          "api_key": "sk-ant-...",
+          "model": "claude-3-5-sonnet-20241022",
+          "base_url": null,
+          "enabled": true
+        }
+      ]
+    }
+    ```
+    """
+    request_id = base.get_task_id(request)
+
+    try:
+        from app.services import studio_settings
+        values = {}
+        for item in body.configs:
+            values[item.provider.value] = item.model_dump(mode='json', exclude_none=True, exclude={'provider'})
+        studio_settings.save_settings({'llm': values})
+
+        logger.info(f"Updated LLM configurations for {len(body.configs)} providers")
+
+        return utils.get_response(
+            200,
+            {
+                "message": "LLM configurations updated successfully",
+                "providers_updated": [c.provider.value for c in body.configs],
+            },
+        )
+
+    except Exception as e:
+        from app.services.studio_settings import redact
+        raise HttpException(request_id, status_code=400 if isinstance(e, ValueError) else 500, message=redact(e))
+
+
+@router.get(
+    "/llm-config",
+    response_model=BaseResponse,
+    summary="Get LLM provider configurations (keys masked)",
+)
+def get_llm_config(request: Request):
+    """
+    Get current LLM provider configurations
+
+    API keys are never returned; blank fields preserve saved credentials.
+
+    Returns:
+        BaseResponse with list of configured LLM providers
+    """
+    request_id = base.get_task_id(request)
+
+    try:
+        from app.services.studio_settings import get_settings
+        configs = [dict(provider=provider, **cfg) for provider, cfg in get_settings()['llm'].items()]
+
+        return utils.get_response(200, {"configs": configs})
+
+    except Exception as e:
+        logger.error(f"Failed to get LLM config: {e}")
+        raise HttpException(request_id, status_code=500, message=str(e))
+
+
+@router.post(
+    "/generate-script",
+    response_model=BaseResponse,
+    summary="Generate structured script using LLM",
+)
+def generate_script(
+    background_tasks: BackgroundTasks,
+    request: Request,
+    body: ScriptGenerationRequest,
+):
+    """
+    Generate a structured script for long-form video using selected LLM provider
+
+    The generated script will be validated and can be used directly with
+    the /longform-videos endpoint
+
+    Example:
+    ```json
+    {
+      "topic": "História da Inteligência Artificial",
+      "duration_minutes": 20,
+      "language": "pt-BR",
+      "style": "educational",
+      "llm_provider": "openai",
+      "keywords": ["machine learning", "deep learning", "neural networks"]
+    }
+    ```
+
+    Returns:
+        BaseResponse with generated StructuredScript
+    """
+    from app.services.script_generator import ScriptGeneratorService
+
+    request_id = base.get_task_id(request)
+
+    try:
+        # Validate duration is within limits
+        if body.duration_minutes < 15 or body.duration_minutes > 30:
+            raise ValueError("Duration must be between 15 and 30 minutes")
+
+        # Generate script
+        generator = ScriptGeneratorService()
+        script, model_used, gen_time, tokens = generator.generate_script(body)
+
+        # Validate generated script
+        from app.services.script_parser import ScriptParser
+
+        parser = ScriptParser()
+        try:
+            parser.parse_json_script(script.model_dump())
+        except ValueError as e:
+            logger.error(f"Generated script failed validation: {e}")
+            raise ValueError(f"Generated script is invalid: {e}")
+
+        response = ScriptGenerationResponse(
+            script=script,
+            llm_provider=body.llm_provider.value,
+            model_used=model_used,
+            generation_time_seconds=gen_time,
+            token_count=tokens,
+        )
+
+        logger.info(
+            f"Script generated successfully: {script.title} ({len(script.scenes)} scenes)"
+        )
+
+        return utils.get_response(200, response.model_dump())
+
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise HttpException(request_id, status_code=400, message=str(e))
+    except Exception as e:
+        logger.error(f"Failed to generate script: {e}")
+        raise HttpException(request_id, status_code=500, message=str(e))

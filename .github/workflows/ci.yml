@@ -33,3 +33,6 @@ jobs:
 
       - name: Run deterministic unit tests
         run: uv run python -X utf8 -m unittest test.services.test_state test.services.test_task test.services.test_schema test.services.test_webui_i18n
+
+      - name: Verify complete local studio
+        run: uv run python -X utf8 -m unittest test.services.test_longform_pipeline test.services.test_studio test.services.test_studio_api test.services.test_studio_ui test.services.test_studio_render
