@@ -344,6 +344,27 @@ class StudioTests(unittest.TestCase):
                 studio.save_draft(script, '../outside')
             self.assertEqual(studio.save_draft(script, saved['id'])['id'], saved['id'])
 
+    def test_delete_production_removes_its_entire_project_folder(self):
+        from app.services import studio
+        with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
+             patch.object(studio, 'validate_settings', return_value=[]), patch.object(studio, '_manager'):
+            identifier = studio.submit(LongFormVideoParams(video_subject='Teste', structured_script=example_script()))
+            folder = studio._folder(identifier)
+            (folder / 'final.mp4').write_bytes(b'video')
+            studio._release(identifier)
+            studio.delete_production(identifier)
+            self.assertFalse(folder.exists())
+
+    def test_delete_production_rejects_a_queued_project(self):
+        from app.services import studio
+        with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
+             patch.object(studio, 'validate_settings', return_value=[]), patch.object(studio, '_manager'):
+            identifier = studio.submit(LongFormVideoParams(video_subject='Teste', structured_script=example_script()))
+            with self.assertRaises(ValueError):
+                studio.delete_production(identifier)
+            self.assertTrue(studio._folder(identifier).exists())
+            studio._release(identifier)
+
     def test_queued_production_cannot_be_resumed_twice_and_survives_restart(self):
         from app.services import studio
         with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \

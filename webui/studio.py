@@ -491,6 +491,13 @@ def _history():
                 st.session_state.studio_brief = project['brief']
                 _load(project['script'])
                 st.success('Projeto restaurado em Criar vídeo.')
+            if record['status'] not in ('queued', 'running') and st.button('Excluir projeto', key=f'delete_project_{task_id}'):
+                try:
+                    backend.delete_production(task_id)
+                    st.success('Projeto excluído, incluindo todos os arquivos gerados.')
+                    st.rerun()
+                except Exception as exc:
+                    st.error(redact(exc))
             if record['status'] in ('failed', 'interrupted') and st.button('Retomar produção', key=f'resume_{task_id}'):
                 try:
                     backend.resume(task_id)

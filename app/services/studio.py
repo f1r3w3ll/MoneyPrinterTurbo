@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import shutil
 import threading
 import time
 import unicodedata
@@ -120,6 +121,18 @@ def list_productions():
             except (OSError, ValueError):
                 continue
         return sorted(records, key=lambda record: record['created_at'], reverse=True)
+
+
+def delete_production(identifier):
+    """Permanently remove a finished or interrupted production and its files."""
+    with _lock:
+        record = get_production(identifier)
+        if identifier in _active or record['status'] in ('queued', 'running'):
+            raise ValueError('Não é possível excluir uma produção em andamento ou na fila.')
+        folder = _folder(identifier)
+        if not folder.is_dir():
+            raise ValueError('Projeto de produção não encontrado.')
+        shutil.rmtree(folder)
 
 
 def _public_params(params):

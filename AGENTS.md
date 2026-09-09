@@ -166,6 +166,11 @@ ElevenLabs/Replicate e Anthropic constam nas dependências; testes do estúdio
 foram adicionados ao CI. Midjourney, Play.ht e Murf continuam fora da interface.
 O gerador original foi preservado.
 
+- Em **Produções**, projetos concluídos, falhos ou interrompidos podem ser
+  excluídos pela interface. A ação remove de forma permanente a pasta inteira
+  em `storage/studio/productions`, incluindo vídeo, thumbnail, roteiro,
+  legendas e checkpoints. Produções em fila ou em execução são protegidas.
+
 ## Atualização operacional e UX — 08/09/2026
 
 - A seleção de roteiro Claude não envia `base_url=None` ao SDK; erros de conexão
