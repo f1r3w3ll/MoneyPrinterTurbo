@@ -66,6 +66,20 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(brief['goal'], 'Descoberta')
         self.assertIn('A guerra dos navegadores', generate.call_args.args[1])
 
+    def test_english_channel_gets_english_packaging_options(self):
+        from app.services import editorial
+        options = editorial.packaging_options({
+            'topic': 'The hidden infrastructure behind AI',
+            'central_question': 'What does AI physically cost America?',
+            'thesis': 'AI depends on concentrated industrial infrastructure.',
+            'promise': 'Understand the systems behind every AI prompt.',
+        }, language='en-US')
+
+        self.assertEqual(options[0]['angle'], 'Central question')
+        self.assertIn('What really happened', options[1]['title'])
+        self.assertIn('AI still affects you', options[2]['title'])
+        self.assertIn('Visual contrast', options[0]['visual_concept'])
+
     def test_editorial_context_is_present_in_script_prompt_and_metadata(self):
         from app.models.schema import ScriptGenerationRequest
         from app.services.script_generator import ScriptGeneratorService

@@ -213,13 +213,37 @@ def generate_brief(topic, profile, provider):
     return _brief(values, topic)
 
 
-def packaging_options(brief):
+def packaging_options(brief, language='pt-BR'):
     """Return distinct, editable packaging hypotheses before spending on generation."""
     brief = brief or {}
     topic = str(brief.get('topic') or 'Este tema').strip()
     question = str(brief.get('central_question') or f'Por que {topic} importa?').strip()
     thesis = str(brief.get('thesis') or topic).strip()
     promise = str(brief.get('promise') or question).strip()
+    if language == 'en-US':
+        return [
+            {'title': question, 'thumbnail_text': topic[:38],
+             'visual_concept': f'Visual contrast that reveals: {thesis}', 'promise': promise,
+             'angle': 'Central question'},
+            {'title': f'What really happened in {topic}', 'thumbnail_text': 'WHAT CHANGED?',
+             'visual_concept': f'Before-and-after evidence for the thesis: {thesis}', 'promise': promise,
+             'angle': 'Reveal'},
+            {'title': f'How {topic} still affects you', 'thumbnail_text': 'STILL MATTERS',
+             'visual_concept': f'Connect {topic} to a present-day consequence', 'promise': promise,
+             'angle': 'Present consequence'},
+        ]
+    if language == 'es-ES':
+        return [
+            {'title': question, 'thumbnail_text': topic[:38],
+             'visual_concept': f'Contraste visual que revela: {thesis}', 'promise': promise,
+             'angle': 'Pregunta central'},
+            {'title': f'Lo que realmente ocurrió en {topic}', 'thumbnail_text': '¿QUÉ CAMBIÓ?',
+             'visual_concept': f'Antes y después que respalda la tesis: {thesis}', 'promise': promise,
+             'angle': 'Revelación'},
+            {'title': f'Cómo {topic} todavía te afecta', 'thumbnail_text': 'AÚN IMPORTA',
+             'visual_concept': f'Conexión entre {topic} y una consecuencia actual', 'promise': promise,
+             'angle': 'Consecuencia actual'},
+        ]
     return [
         {'title': question, 'thumbnail_text': topic[:38],
          'visual_concept': f'Contraste visual que revela: {thesis}', 'promise': promise,

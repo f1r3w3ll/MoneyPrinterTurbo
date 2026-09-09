@@ -121,6 +121,12 @@ def _channel_profile_editor():
 def _brief_and_packaging(profile):
     st.subheader('1 · Pauta e embalagem')
     st.caption('Comece pela pergunta e pela promessa. Depois escolha uma embalagem que o roteiro realmente entrega.')
+    profile_language = profile.get('language', 'pt-BR')
+    if st.session_state.get('packaging_language') != profile_language:
+        for key in list(st.session_state):
+            if key.startswith('packaging_'):
+                st.session_state.pop(key, None)
+        st.session_state.packaging_language = profile_language
     if generated := st.session_state.pop('generated_studio_brief', None):
         st.session_state.studio_brief = generated
         st.session_state.brief_topic = generated['topic']
@@ -157,7 +163,7 @@ def _brief_and_packaging(profile):
         st.info('Defina o tema para criar títulos e thumbnail alinhados à pauta.')
         return brief, None
 
-    options = editorial.packaging_options(brief)
+    options = editorial.packaging_options(brief, language=profile_language)
     with st.expander('2 · Escolher embalagem', expanded=True):
         selected_index = st.radio('Ângulo de título e thumbnail', range(len(options)), format_func=lambda index: f"{options[index]['angle']} · {options[index]['title']}", horizontal=False, key='packaging_choice')
         selected = dict(options[selected_index])
