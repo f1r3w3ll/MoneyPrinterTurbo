@@ -77,7 +77,7 @@ def _duration_is_on_target(estimated_seconds, target_seconds):
     """Allow a small planning margin; final audio is still measured later."""
     if not target_seconds:
         return True
-    return target_seconds * 0.8 <= estimated_seconds <= target_seconds * 1.2
+    return target_seconds * 0.75 <= estimated_seconds <= target_seconds * 1.2
 
 
 def _channel_profile_editor():

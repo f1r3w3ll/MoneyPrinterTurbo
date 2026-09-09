@@ -265,3 +265,8 @@ O gerador original foi preservado.
   12 cenas, com duração e orçamento de texto proporcionais. O resultado reúne
   os blocos em um único roteiro; um bloco que retorne menos cenas que o pedido
   falha explicitamente, em vez de produzir silenciosamente um vídeo curto.
+- A faixa aceitável da estimativa textual é 75% a 120% da meta: por exemplo,
+  uma meta de 20 minutos aceita 15 minutos ou mais, preservando a faixa
+  long-form. O prompt exige CTA no idioma da narração; em roteiro inglês,
+  `inscreva-se` em uma cena CTA é normalizado para `Subscribe`, sem alterar o
+  nome de marca do canal.

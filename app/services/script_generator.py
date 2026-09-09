@@ -5,6 +5,7 @@ Supports: OpenAI, Claude (Anthropic), Gemini, DeepSeek, Kimi, Qwen
 """
 
 import json
+import re
 import time
 from typing import Dict, Optional, Tuple
 from loguru import logger
@@ -314,6 +315,7 @@ of a claim that you cannot support.
 8. Put a meaningful change of pace, question, reveal, contrast, or consequence at least every 45-90 seconds
 9. Build chapters with a new question or escalation at each transition; answer open loops before the conclusion
 10. Every scene must state its narrative_role and visual_function. Use source_note for factual claims that need checking.
+11. Write every narration line, including the call-to-action, exclusively in {request.language}. Keep any channel name as a proper brand name, but translate the CTA phrase itself (for example, "Subscribe" in English).
 
 Output ONLY the JSON, no explanations or markdown formatting.
 """
@@ -579,5 +581,13 @@ Output ONLY the JSON, no explanations or markdown formatting.
             scenes=scenes,
             metadata=metadata,
         )
+        cta_replacements = {
+            'en-US': [(r'\binscreva-?se\b', 'Subscribe')],
+            'es-ES': [(r'\binscreva-?se\b', 'Suscríbete')],
+        }
+        for scene in script.scenes:
+            if scene.narrative_role and scene.narrative_role.lower() == 'cta':
+                for pattern, replacement in cta_replacements.get(request.language, []):
+                    scene.narration = re.sub(pattern, replacement, scene.narration, flags=re.IGNORECASE)
 
         return script

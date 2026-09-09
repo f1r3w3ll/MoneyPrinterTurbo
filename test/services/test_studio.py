@@ -137,6 +137,18 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(script.metadata['script_language'], 'en-US')
         self.assertEqual(script.metadata['target_duration_seconds'], 1200)
 
+    def test_english_script_normalizes_a_portuguese_subscribe_cta(self):
+        from app.models.schema import ScriptGenerationRequest
+        from app.services.script_generator import ScriptGeneratorService
+
+        script = ScriptGeneratorService()._parse_script_json(json.dumps({
+            'title': 'Title', 'description': '', 'total_duration_estimate': 900,
+            'scenes': [dict(index=index, narration='Fio da Ciência - inscreva-se' if index == 4 else 'Complete English narration for this scene.', image_prompt='Detailed documentary image', narrative_role='CTA' if index == 4 else 'context') for index in range(5)],
+        }), ScriptGenerationRequest(topic='AI', language='en-US'))
+
+        self.assertIn('Subscribe', script.scenes[4].narration)
+        self.assertNotIn('inscreva-se', script.scenes[4].narration.lower())
+
     def test_longform_script_is_generated_in_bounded_scene_batches(self):
         from app.models.schema import ScriptGenerationRequest
         from app.services.script_generator import ScriptGeneratorService
@@ -157,6 +169,12 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(script.metadata['target_scene_count'], 48)
         self.assertEqual(model, 'gpt-4o')
         self.assertEqual(tokens, 400)
+
+    def test_longform_duration_margin_accepts_fifteen_minutes_for_a_twenty_minute_target(self):
+        from webui.studio import _duration_is_on_target
+
+        self.assertTrue(_duration_is_on_target(15.7 * 60, 20 * 60))
+        self.assertFalse(_duration_is_on_target(14.9 * 60, 20 * 60))
 
     def test_duration_correction_is_limited_and_preserves_editorial_metadata(self):
         from app.models.schema import ScriptGenerationRequest
