@@ -534,6 +534,15 @@ def _publication_title(record):
     return package.get('title') or script.get('title') or record.get('title', '')
 
 
+def _youtube_title(value):
+    """Keep the auto-filled YouTube title within its 100-character limit."""
+    title = ' '.join(str(value or '').split())
+    if len(title) <= 100:
+        return title
+    shortened = title[:101].rsplit(' ', 1)[0].rstrip(' ,:;-')
+    return shortened or title[:100]
+
+
 def _publication_description(raw):
     """Extract displayable description text from a JSON-mode LLM response."""
     if isinstance(raw, dict):
@@ -571,7 +580,8 @@ def _publication(settings):
         st.info('Conclua uma produção para publicá-la.')
         return
     selected = st.selectbox('Vídeo concluído', records, format_func=lambda item: item['title'], key='publication_video')
-    title = st.text_input('Título de publicação', value=_publication_title(selected), key=f'publication_title_{selected["id"]}')
+    title = st.text_input('Título de publicação', value=_youtube_title(_publication_title(selected)), max_chars=100, key=f'publication_title_{selected["id"]}')
+    st.caption(f'{len(title)}/100 caracteres')
     if st.button('Gerar descrição com IA', key=f'publication_ai_{selected["id"]}'):
         try:
             from app.services.script_generator import ScriptGeneratorService

@@ -49,6 +49,11 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
     path = Path(video_path)
     if not path.is_file():
         raise ValueError('O MP4 desta produção não está disponível.')
+    title = str(title or '').strip()
+    if not title:
+        raise ValueError('Informe um título para o vídeo do YouTube.')
+    if len(title) > 100:
+        raise ValueError('O título do YouTube pode ter no máximo 100 caracteres.')
     with path.open('rb') as file:
         upload = requests.post(f'{BASE_URL}/media', headers=_headers(), params={'projectId': project_id}, files={'file': (path.name, file, 'video/mp4')}, timeout=600)
     upload.raise_for_status()

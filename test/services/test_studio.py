@@ -395,6 +395,16 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(payload['schedule'], {'type': 'PUBLISH_NOW'})
             self.assertEqual(payload['socialAccounts'][0], {'platform': 'YOUTUBE', 'socialAccountId': 'account-1', 'title': 'Title', 'privacy': 'private'})
 
+    def test_woopsocial_rejects_an_overlong_youtube_title_before_upload(self):
+        from app.services import woopsocial
+        with tempfile.TemporaryDirectory() as tmp:
+            video = Path(tmp) / 'video.mp4'
+            video.write_bytes(b'video')
+            with patch('app.services.woopsocial.requests.post') as request:
+                with self.assertRaisesRegex(ValueError, '100 caracteres'):
+                    woopsocial.publish(video, 'project-1', 'account-1', 'A' * 101, 'Description', 'private')
+            request.assert_not_called()
+
     def test_queued_production_cannot_be_resumed_twice_and_survives_restart(self):
         from app.services import studio
         with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \

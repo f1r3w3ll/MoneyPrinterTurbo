@@ -295,3 +295,6 @@ O gerador original foi preservado.
   lista os projetos disponíveis e envia o MP4 ao projeto escolhido antes de
   criar o post. O payload atual do YouTube usa `title` e `privacy` diretamente
   no item de canal; agendamentos usam `SCHEDULE_FOR_LATER` e `scheduledFor`.
+- Títulos de YouTube têm limite de 100 caracteres. O Estúdio encurta o título
+  editorial automático por palavras, mostra a contagem e valida esse limite
+  antes de iniciar o upload do MP4.
