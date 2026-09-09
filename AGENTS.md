@@ -193,3 +193,24 @@ O gerador original foi preservado.
 - Verificação recente: compilação dos arquivos alterados e 25 testes de
   `test_studio`, `test_studio_ui` e `test_longform_pipeline` passaram. Os testes
   do MoviePy podem emitir `ResourceWarning` de leitores de áudio, sem falhar.
+
+## Fundação editorial do canal — 09/09/2026
+
+- Antes desta evolução foi criada a tag local
+  `backup/editorial-foundation-before-2026-09-09`, que preserva o commit
+  `8f13746` como ponto de retorno do Estúdio anterior.
+- O Estúdio agora guarda uma identidade editorial local em
+  `storage/studio/channel_profile.json`: canal, nicho, recorte, público,
+  promessa, tom, pilares, direção visual, política de fontes e restrições.
+  Esse arquivo é criado somente quando o usuário salva a identidade.
+- A criação começa com pauta (tema, pergunta, tese, promessa, objetivo e
+  referências) e apresenta três opções editáveis de título, texto e conceito
+  visual de thumbnail. A opção escolhida é vinculada ao roteiro para que a
+  promessa e a thumbnail não se separem da entrega do vídeo.
+- `SceneInfo` passou a aceitar papel narrativo, função visual, gancho em aberto
+  e nota de fonte. O gerador instrui a IA a estruturar gancho, capítulos,
+  mudanças de ritmo, payoff e notas de checagem. Os campos são opcionais para
+  preservar roteiros e produções existentes.
+- Metadados editoriais acompanham a sessão, o rascunho, a exportação do roteiro
+  e os parâmetros de produção. A tela de revisão mostra uma checagem de
+  promessa/gancho/payoff quando esses dados existem.

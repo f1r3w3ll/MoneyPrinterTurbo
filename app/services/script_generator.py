@@ -111,6 +111,17 @@ class ScriptGeneratorService:
         if request.custom_instructions:
             prompt += f"\n**Additional instructions:**\n{request.custom_instructions}\n"
 
+        if request.editorial_context:
+            editorial = json.dumps(request.editorial_context, ensure_ascii=False, indent=2)
+            prompt += f"""
+**Editorial direction (follow it exactly):**
+{editorial}
+
+Keep the chosen packaging promise. Do not use a title that promises something the
+script does not answer. Treat source notes as verification leads, never as proof
+of a claim that you cannot support.
+"""
+
         prompt += f"""
 **Output Format (JSON only, no markdown):**
 {{
@@ -123,10 +134,22 @@ class ScriptGeneratorService:
       "narration": "Detailed narration text in {request.language} (minimum 50 characters, engaging and informative)",
       "image_prompt": "Detailed English prompt for AI image generation (describe visual scene, style, mood)",
       "duration_seconds": 25,
-      "transition": "fade"
+      "transition": "fade",
+      "narrative_role": "hook, context, escalation, payoff, or CTA",
+      "visual_function": "What the image proves, contrasts, or reveals",
+      "open_loop": "Optional question answered in a later scene",
+      "source_note": "Optional source or verification lead for a factual claim"
     }},
     ... ({num_scenes} scenes total)
-  ]
+  ],
+  "metadata": {{
+    "editorial": {{
+      "promise": "The precise value delivered by the video",
+      "hook": "The opening tension or question",
+      "chapters": [{{"title": "Chapter title", "purpose": "Why the viewer keeps watching"}}],
+      "payoff": "How the conclusion answers the opening promise"
+    }}
+  }}
 }}
 
 **Scene Guidelines:**
@@ -137,6 +160,9 @@ class ScriptGeneratorService:
 5. Create a clear narrative flow across all scenes
 6. First scene should hook the viewer
 7. Last scene should have a strong conclusion/call-to-action
+8. Put a meaningful change of pace, question, reveal, contrast, or consequence at least every 45-90 seconds
+9. Build chapters with a new question or escalation at each transition; answer open loops before the conclusion
+10. Every scene must state its narrative_role and visual_function. Use source_note for factual claims that need checking.
 
 Output ONLY the JSON, no explanations or markdown formatting.
 """
@@ -370,8 +396,20 @@ Output ONLY the JSON, no explanations or markdown formatting.
                 image_prompt=scene_data["image_prompt"],
                 duration_seconds=scene_data.get("duration_seconds"),
                 transition=scene_data.get("transition", "fade"),
+                narrative_role=scene_data.get("narrative_role"),
+                visual_function=scene_data.get("visual_function"),
+                open_loop=scene_data.get("open_loop"),
+                source_note=scene_data.get("source_note"),
             )
             scenes.append(scene)
+
+        metadata = data.get("metadata", {}) or {}
+        if request.editorial_context:
+            generated_editorial = metadata.get("editorial", {}) or {}
+            metadata["editorial"] = {
+                **request.editorial_context,
+                **generated_editorial,
+            }
 
         script = StructuredScript(
             title=data.get("title", f"Video sobre {request.topic}"),
@@ -380,6 +418,7 @@ Output ONLY the JSON, no explanations or markdown formatting.
                 "total_duration_estimate", request.duration_minutes * 60
             ),
             scenes=scenes,
+            metadata=metadata,
         )
 
         return script

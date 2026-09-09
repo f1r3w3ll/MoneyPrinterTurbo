@@ -11,6 +11,49 @@ from test.services.test_longform_pipeline import example_script
 
 
 class StudioTests(unittest.TestCase):
+    def test_channel_profile_persists_and_packaging_keeps_the_promise(self):
+        from app.services import editorial
+        with tempfile.TemporaryDirectory() as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
+            saved = editorial.save_channel_profile({
+                'name': 'Canal Atlas', 'niche': 'História da tecnologia',
+                'audience': 'Curiosos adultos', 'promise': 'Explicar as forças por trás da tecnologia',
+            })
+            self.assertEqual(editorial.get_channel_profile()['name'], 'Canal Atlas')
+            self.assertEqual(saved['niche'], 'História da tecnologia')
+            options = editorial.packaging_options({
+                'topic': 'A guerra dos navegadores',
+                'central_question': 'Como um navegador mudou a internet?',
+                'thesis': 'A disputa definiu a web moderna.',
+                'promise': 'Entender por que essa batalha ainda afeta você.',
+            })
+            self.assertEqual(len(options), 3)
+            self.assertTrue(all(option['thumbnail_text'] for option in options))
+            self.assertTrue(all(option['promise'] == 'Entender por que essa batalha ainda afeta você.' for option in options))
+
+    def test_editorial_context_is_present_in_script_prompt_and_metadata(self):
+        from app.models.schema import ScriptGenerationRequest
+        from app.services.script_generator import ScriptGeneratorService
+
+        request = ScriptGenerationRequest(
+            topic='A guerra dos navegadores',
+            editorial_context={
+                'brief': {'promise': 'Entender por que essa batalha ainda afeta você.'},
+                'selected_package': {'title': 'Como a guerra dos navegadores mudou a internet'},
+            },
+        )
+        generator = ScriptGeneratorService()
+        prompt = generator._build_prompt(request)
+        script = generator._parse_script_json(json.dumps({
+            'title': 'Título', 'description': '', 'total_duration_estimate': 900,
+            'scenes': [dict(index=index, narration='Uma narração completa para esta cena.', image_prompt='Imagem documental detalhada') for index in range(5)],
+            'metadata': {'editorial': {'hook': 'Uma disputa aparentemente pequena mudou a web.'}},
+        }), request)
+
+        self.assertIn('meaningful change of pace', prompt)
+        self.assertIn('Como a guerra dos navegadores mudou a internet', prompt)
+        self.assertEqual(script.metadata['editorial']['brief']['promise'], 'Entender por que essa batalha ainda afeta você.')
+        self.assertEqual(script.metadata['editorial']['hook'], 'Uma disputa aparentemente pequena mudou a web.')
+
     def test_production_identifier_uses_a_readable_title_slug(self):
         from app.services.studio import production_identifier
 
@@ -122,11 +165,14 @@ class StudioTests(unittest.TestCase):
     def test_drafts_persist_and_reject_path_traversal(self):
         from app.services import studio
         with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)):
-            saved = studio.save_draft(example_script().model_dump())
+            script = example_script().model_dump()
+            script['metadata'] = {'editorial': {'selected_package': {'title': 'Título escolhido'}}}
+            saved = studio.save_draft(script)
             self.assertEqual(studio.list_drafts()[0]['script']['title'], 'Teste')
+            self.assertEqual(studio.list_drafts()[0]['script']['metadata']['editorial']['selected_package']['title'], 'Título escolhido')
             with self.assertRaises(ValueError):
-                studio.save_draft(example_script().model_dump(), '../outside')
-            self.assertEqual(studio.save_draft(example_script().model_dump(), saved['id'])['id'], saved['id'])
+                studio.save_draft(script, '../outside')
+            self.assertEqual(studio.save_draft(script, saved['id'])['id'], saved['id'])
 
     def test_queued_production_cannot_be_resumed_twice_and_survives_restart(self):
         from app.services import studio

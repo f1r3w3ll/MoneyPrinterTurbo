@@ -394,6 +394,10 @@ class SceneInfo(BaseModel):
     image_prompt: str  # Prompt for AI image generation (DALL-E, SD, etc.)
     duration_seconds: Optional[float] = None  # Override auto-calculated duration
     transition: Optional[str] = "fade"  # fade, slide, zoom, none
+    narrative_role: Optional[str] = None  # hook, context, escalation, payoff, CTA
+    visual_function: Optional[str] = None  # Establish, evidence, contrast, reveal
+    open_loop: Optional[str] = None  # Question deliberately answered in a later scene
+    source_note: Optional[str] = None  # Source or verification note for claims
 
 
 class StructuredScript(BaseModel):
@@ -482,6 +486,7 @@ class ScriptGenerationRequest(BaseModel):
     keywords: Optional[List[str]] = []
     reference_urls: Optional[List[str]] = []
     custom_instructions: Optional[str] = None
+    editorial_context: Optional[dict] = None  # Channel profile, brief, and selected packaging
 
 
 class ScriptGenerationResponse(BaseModel):

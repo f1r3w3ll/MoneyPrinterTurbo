@@ -31,6 +31,18 @@ class TemporaryDirectory(tempfile.TemporaryDirectory):
 
 
 class LongformTests(unittest.TestCase):
+    def test_editorial_metadata_and_retention_fields_are_preserved(self):
+        data = example_script().model_dump()
+        data['metadata'] = {'editorial': {'promise': 'Entenda por que isso ainda importa.'}}
+        data['scenes'][0]['narrative_role'] = 'hook'
+        data['scenes'][0]['open_loop'] = 'A resposta aparece no próximo capítulo.'
+
+        parsed = ScriptParser().parse_json_script(data)
+
+        self.assertEqual(parsed.metadata['editorial']['promise'], 'Entenda por que isso ainda importa.')
+        self.assertEqual(parsed.scenes[0].narrative_role, 'hook')
+        self.assertEqual(parsed.scenes[0].open_loop, 'A resposta aparece no próximo capítulo.')
+
     def test_cut_transition_from_generated_script_is_normalized(self):
         data = example_script().model_dump()
         data['scenes'][0]['transition'] = 'cut'
