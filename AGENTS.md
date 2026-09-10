@@ -324,3 +324,5 @@ O gerador original foi preservado.
   25 MB, `woopsocial.py` usa a sessão de upload em partes com URLs
   pré-assinadas e espera a mídia ficar pronta antes de criar o post. Esse fluxo
   suporta arquivos de até 5 GB segundo a documentação atual da API.
+- A aba Publicação exibe uma barra de progresso durante o envio: bytes enviados
+  e percentual por parte, depois o processamento da mídia e a criação do post.

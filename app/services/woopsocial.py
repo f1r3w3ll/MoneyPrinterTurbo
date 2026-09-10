@@ -74,11 +74,18 @@ def _media_id(payload):
             or (payload.get('media') or {}).get('id'))
 
 
-def _upload_video_in_session(path, project_id):
+def _report_upload_progress(progress, sent, total, phase):
+    if progress:
+        progress(sent, total, phase)
+
+
+def _upload_video_in_session(path, project_id, progress=None):
     """Upload MP4 bytes through presigned URLs, then wait until media is ready."""
     headers = _headers()
+    total_size = path.stat().st_size
+    _report_upload_progress(progress, 0, total_size, 'Preparando upload')
     created = requests.post(f'{BASE_URL}/media/upload-sessions', headers=headers,
-                            json={'projectId': project_id, 'fileSizeInBytes': path.stat().st_size}, timeout=60)
+                            json={'projectId': project_id, 'fileSizeInBytes': total_size}, timeout=60)
     _ensure_success(created, 'a abertura da sessão de upload')
     session = created.json()
     session_id = session.get('uploadSessionId')
@@ -90,6 +97,7 @@ def _upload_video_in_session(path, project_id):
     if expected_count != len(parts):
         raise ValueError('A WoopSocial retornou uma sessão de upload incompleta.')
     ordered_parts = sorted(parts, key=lambda item: item.get('partNumber', 0))
+    sent = 0
     with path.open('rb') as file:
         for index, part in enumerate(ordered_parts):
             url = part.get('uploadUrl') if isinstance(part, dict) else None
@@ -98,10 +106,13 @@ def _upload_video_in_session(path, project_id):
                 raise ValueError('A WoopSocial retornou partes de upload inválidas.')
             uploaded = requests.put(url, data=chunk, timeout=600)
             _ensure_success(uploaded, f'a parte {index + 1} do upload')
+            sent += len(chunk)
+            _report_upload_progress(progress, sent, total_size, 'Enviando vídeo')
         if file.read(1):
             raise ValueError('A sessão de upload não contém partes suficientes para este vídeo.')
     completed = requests.post(f'{BASE_URL}/media/upload-sessions/{session_id}/complete', headers=headers, timeout=60)
     _ensure_success(completed, 'a finalização do upload')
+    _report_upload_progress(progress, total_size, total_size, 'Processando vídeo')
     for _ in range(15):
         status_response = requests.get(f'{BASE_URL}/media/upload-sessions/{session_id}', headers=headers, timeout=30)
         _ensure_success(status_response, 'o processamento do upload')
@@ -116,7 +127,7 @@ def _upload_video_in_session(path, project_id):
     raise ValueError('A WoopSocial ainda está processando o vídeo. Tente publicar novamente em alguns instantes.')
 
 
-def publish(video_path, project_id, account_id, title, description, privacy, scheduled_at=None, tags=None):
+def publish(video_path, project_id, account_id, title, description, privacy, scheduled_at=None, tags=None, progress=None):
     path = Path(video_path)
     if not path.is_file():
         raise ValueError('O MP4 desta produção não está disponível.')
@@ -126,12 +137,14 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
     if len(title) > 100:
         raise ValueError('O título do YouTube pode ter no máximo 100 caracteres.')
     if path.stat().st_size >= CHUNKED_UPLOAD_THRESHOLD_BYTES:
-        media_id = _upload_video_in_session(path, project_id)
+        media_id = _upload_video_in_session(path, project_id, progress)
     else:
+        _report_upload_progress(progress, 0, path.stat().st_size, 'Enviando vídeo')
         with path.open('rb') as file:
             upload = requests.post(f'{BASE_URL}/media', headers=_headers(), params={'projectId': project_id}, files={'file': (path.name, file, 'video/mp4')}, timeout=600)
         _ensure_success(upload, 'o upload do vídeo')
         media_id = _media_id(upload.json())
+        _report_upload_progress(progress, path.stat().st_size, path.stat().st_size, 'Processando vídeo')
     if not media_id:
         raise ValueError('A WoopSocial não devolveu o identificador da mídia enviada.')
     schedule = {'type': 'PUBLISH_NOW'} if privacy != 'scheduled' else {'type': 'SCHEDULE_FOR_LATER', 'scheduledFor': scheduled_at}
@@ -142,6 +155,7 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
     body = {'content': [{'text': description, 'media': [{'type': 'MEDIA_LIBRARY', 'mediaId': media_id}]}], 'schedule': schedule,
             'socialAccounts': [youtube_target]}
     headers = {**_headers(), 'Content-Type': 'application/json'}
+    _report_upload_progress(progress, path.stat().st_size, path.stat().st_size, 'Criando publicação')
     validation = requests.post(f'{BASE_URL}/posts/validate', headers=headers, json=body, timeout=60)
     _ensure_success(validation, 'a validação da publicação')
     validation_result = validation.json()

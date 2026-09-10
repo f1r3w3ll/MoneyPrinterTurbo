@@ -412,17 +412,20 @@ class StudioTests(unittest.TestCase):
             validation = Mock(); validation.json.return_value = {'isValid': True, 'errors': []}
             posted = Mock(); posted.json.return_value = {'id': 'post-1'}
             uploaded_part = Mock()
+            progress = []
             with patch('app.services.woopsocial.requests.post', side_effect=[session, completed, validation, posted]) as post, \
                  patch('app.services.woopsocial.requests.put', return_value=uploaded_part) as put, \
                  patch('app.services.woopsocial.requests.get', return_value=ready), \
                  patch('app.services.woopsocial._headers', return_value={'Authorization': 'Bearer test'}), \
                  patch.object(woopsocial, 'CHUNKED_UPLOAD_THRESHOLD_BYTES', 1):
-                self.assertEqual(woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private'), {'id': 'post-1'})
+                self.assertEqual(woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private',
+                                                     progress=lambda sent, total, phase: progress.append((sent, total, phase))), {'id': 'post-1'})
             self.assertEqual(post.call_args_list[0].args[0], f'{woopsocial.BASE_URL}/media/upload-sessions')
             self.assertEqual(post.call_args_list[0].kwargs['json'], {'projectId': 'project-1', 'fileSizeInBytes': 5})
             put.assert_called_once_with('https://upload.example/part-1', data=b'video', timeout=600)
             self.assertEqual(post.call_args_list[1].args[0], f'{woopsocial.BASE_URL}/media/upload-sessions/session-1/complete')
             self.assertEqual(post.call_args_list[2].args[0], f'{woopsocial.BASE_URL}/posts/validate')
+            self.assertEqual(progress, [(0, 5, 'Preparando upload'), (5, 5, 'Enviando vídeo'), (5, 5, 'Processando vídeo'), (5, 5, 'Criando publicação')])
 
     def test_woopsocial_stops_when_upload_response_has_no_media_id(self):
         from app.services import woopsocial

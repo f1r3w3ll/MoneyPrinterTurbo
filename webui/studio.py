@@ -714,7 +714,16 @@ Do not place headings inside any field. Use the supplied scene timing for chapte
     account = st.selectbox('Canal do YouTube', accounts, format_func=woopsocial.account_label)
     if st.button('Publicar no YouTube', type='primary', key=f'publish_{selected["id"]}'):
         try:
-            result = woopsocial.publish(selected['artifacts']['video'], project['id'], account['id'], title, description, privacy, scheduled_at, tags=tags)
+            upload_progress = st.progress(0, text='Preparando publicação…')
+
+            def report_upload(sent, total, phase):
+                fraction = sent / total if total else 0
+                upload_progress.progress(max(0.0, min(1.0, fraction)),
+                    text=f'{phase} · {sent / (1024 * 1024):.1f} MB de {total / (1024 * 1024):.1f} MB')
+
+            result = woopsocial.publish(selected['artifacts']['video'], project['id'], account['id'], title, description,
+                                        privacy, scheduled_at, tags=tags, progress=report_upload)
+            upload_progress.progress(1.0, text='Publicação enviada à WoopSocial.')
             st.success('Publicação enviada à WoopSocial.')
             st.json(result)
         except Exception as exc:
