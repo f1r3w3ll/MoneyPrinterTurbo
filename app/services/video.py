@@ -1237,7 +1237,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
 
 
 ######################################################################################################
-# Long-Form Video Composition (15-30 minutes)
+# Long-Form Video Composition (5-30 minutes)
 ######################################################################################################
 
 

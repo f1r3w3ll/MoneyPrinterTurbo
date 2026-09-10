@@ -41,7 +41,7 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
 - Voz: Edge TTS em português, inglês ou espanhol; ElevenLabs quando chave e
   identificador de voz estiverem configurados. Play.ht e Murf não são oferecidos.
 - A duração final é medida pelo áudio de cada cena. A estimativa do roteiro
-  de 15–30 minutos não garante essa duração real; o histórico informa o valor
+  de 5–30 minutos não garante essa duração real; o histórico informa o valor
   medido e avisa quando o resultado fica fora da faixa.
 - A composição usa imagens estáticas e cortes, com áudio e legendas por cena.
   Não há editor de timeline, publicação no YouTube ou música de fundo nesta tela.

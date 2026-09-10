@@ -11,6 +11,20 @@ from test.services.test_longform_pipeline import example_script
 
 
 class StudioTests(unittest.TestCase):
+    def test_structured_script_accepts_five_minute_target(self):
+        from app.services.script_parser import ScriptParser
+
+        script = ScriptParser().parse_json_script({
+            'title': 'Vídeo de cinco minutos', 'description': '', 'total_duration_estimate': 300,
+            'scenes': [
+                {'index': index, 'narration': 'Uma narração completa para validar o roteiro.',
+                 'image_prompt': 'Imagem documental detalhada'}
+                for index in range(5)
+            ],
+        })
+
+        self.assertEqual(script.total_duration_estimate, 300)
+
     def test_channels_keep_independent_profiles_and_active_channel(self):
         from app.services import editorial
         with tempfile.TemporaryDirectory() as tmp, patch.object(editorial, 'ROOT', Path(tmp)):

@@ -401,10 +401,10 @@ class SceneInfo(BaseModel):
 
 
 class StructuredScript(BaseModel):
-    """Complete structured script for long-form video (15-30 minutes)"""
+    """Complete structured script for a five-to-thirty-minute video."""
     title: str
     description: str
-    total_duration_estimate: float  # 900-1800 seconds (15-30 min)
+    total_duration_estimate: float  # 300-1800 seconds (5-30 min)
     scenes: List[SceneInfo]
     metadata: Optional[dict] = {}
 
@@ -473,7 +473,7 @@ class LLMConfigUpdate(BaseModel):
 class ScriptGenerationRequest(BaseModel):
     """Request to generate a structured script using LLM"""
     topic: str  # Main topic/subject for the video
-    duration_minutes: float = 20.0  # Target duration (15-30 min)
+    duration_minutes: float = 20.0  # Target duration (5-30 min)
     num_scenes: Optional[int] = None  # Auto-calculate if not provided
     language: str = "pt-BR"  # Language for narration
     style: Optional[str] = "educational"  # educational, documentary, entertaining

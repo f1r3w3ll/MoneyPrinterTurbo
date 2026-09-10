@@ -111,9 +111,9 @@ class ScriptParser:
             )
 
         # Check duration
-        if script.total_duration_estimate < 900:  # 15 minutes
+        if script.total_duration_estimate < 300:  # 5 minutes
             raise ValueError(
-                f"Duration must be at least 15 minutes (900s), "
+                f"Duration must be at least 5 minutes (300s), "
                 f"got {script.total_duration_estimate}s"
             )
 

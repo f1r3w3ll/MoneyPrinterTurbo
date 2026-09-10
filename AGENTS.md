@@ -338,3 +338,10 @@ O gerador original foi preservado.
   definido na pauta para evitar divergência; produções sem pauta preservam o
   seletor manual existente. Foram adicionadas embalagens em alemão e vozes
   padrão `de-DE-ConradNeural` e `de-DE-KatjaNeural`.
+
+## Duração mínima — 10/09/2026
+
+- Vídeos do Estúdio e os endpoints long-form aceitam de 5 a 30 minutos
+  (300–1.800 segundos). O mínimo foi aplicado ao slider de roteiro, editor
+  manual, parser, validação da API, avisos de produção e bloqueio de
+  publicação, para manter o fluxo consistente.

@@ -408,14 +408,14 @@ async def download_video(request: Request, file_path: str):
 
 
 ######################################################################################################
-# Long-Form Video Endpoints (15-30 minutes)
+# Long-Form Video Endpoints (5-30 minutes)
 ######################################################################################################
 
 
 @router.post(
     "/longform-videos",
     response_model=TaskResponse,
-    summary="Generate long-form YouTube video (15-30 minutes)",
+    summary="Generate YouTube video (5-30 minutes)",
 )
 def create_longform_video(background_tasks: BackgroundTasks, request: Request, body: LongFormVideoParams):
     """Create a persistent production including the thumbnail."""
@@ -445,7 +445,7 @@ def validate_structured_script(
 
     Checks:
     - Scene count (5-100 scenes)
-    - Total duration (15-30 minutes)
+    - Total duration (5-30 minutes)
     - All prompts are non-empty
     - Narration within TTS limits
 
@@ -677,8 +677,8 @@ def generate_script(
 
     try:
         # Validate duration is within limits
-        if body.duration_minutes < 15 or body.duration_minutes > 30:
-            raise ValueError("Duration must be between 15 and 30 minutes")
+        if body.duration_minutes < 5 or body.duration_minutes > 30:
+            raise ValueError("Duration must be between 5 and 30 minutes")
 
         # Generate script
         generator = ScriptGeneratorService()

@@ -262,7 +262,7 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
     with st.expander('Gerar roteiro com IA'):
         with st.form('generate_script'):
             topic = st.text_input('Tema do vídeo', value=(brief or {}).get('topic', ''))
-            minutes = st.slider('Duração estimada (minutos)', 15, 30, 20)
+            minutes = st.slider('Duração estimada (minutos)', 5, 30, 20)
             provider = st.selectbox('IA para o roteiro', ['openai', 'claude', 'gemini', 'deepseek', 'kimi', 'qwen'])
             model_notice = model_status_message(provider, settings.get('llm', {}).get(provider, {}).get('model', ''))
             if model_notice:
@@ -313,7 +313,7 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
                 _load(ScriptParser().parse_json_script(uploaded.getvalue().decode('utf-8-sig')).model_dump())
         scene_count = st.number_input('Cenas do novo roteiro', 5, 100, 30)
         if st.button('Novo roteiro manual', key='new_script'):
-            _load({'title': 'Novo documentário', 'description': '', 'total_duration_estimate': 900, 'scenes': [{'index': i, 'narration': 'Escreva a narração desta cena.', 'image_prompt': 'Descreva a imagem desta cena.', 'duration_seconds': None, 'transition': 'fade'} for i in range(scene_count)]})
+            _load({'title': 'Novo documentário', 'description': '', 'total_duration_estimate': 300, 'scenes': [{'index': i, 'narration': 'Escreva a narração desta cena.', 'image_prompt': 'Descreva a imagem desta cena.', 'duration_seconds': None, 'transition': 'fade'} for i in range(scene_count)]})
     with right:
         drafts = backend.list_drafts()
         if drafts:
@@ -370,7 +370,7 @@ def _editor(backend):
     with st.form(f'editor_{revision}'):
         title = st.text_input('Título', value=script['title'], key=f'script_title_{revision}')
         description = st.text_area('Descrição', value=script.get('description', ''))
-        duration = st.number_input('Estimativa total em segundos', 900, 1800, int(script['total_duration_estimate']))
+        duration = st.number_input('Estimativa total em segundos', 300, 1800, int(script['total_duration_estimate']))
         scenes = []
         for i, scene in enumerate(script['scenes']):
             with st.expander(f"Cena {i + 1} · {scene['narration'][:65]}", expanded=i == 0):
@@ -525,8 +525,8 @@ def _history():
             artifacts = record.get('artifacts') or {}
             if artifacts.get('duration_seconds'):
                 st.caption(f"Duração real: {float(artifacts['duration_seconds']) / 60:.1f} minutos")
-                if artifacts.get('video') and not 900 <= float(artifacts['duration_seconds']) <= 1800:
-                    st.warning('O áudio gerado ficou fora de 15–30 minutos. Ajuste o roteiro e crie uma nova produção se precisar dessa duração.')
+                if artifacts.get('video') and not 300 <= float(artifacts['duration_seconds']) <= 1800:
+                    st.warning('O áudio gerado ficou fora de 5–30 minutos. Ajuste o roteiro e crie uma nova produção se precisar dessa duração.')
             if artifacts.get('video'):
                 video = Path(artifacts['video'])
                 if video.is_file():
@@ -646,8 +646,8 @@ def _publication_duration_error(record):
     if target and not _duration_is_on_target(duration, target):
         return (f'Este arquivo tem {duration / 60:.1f} minutos, mas a meta desta produção é '
                 f'{target / 60:.0f} minutos. Corrija o roteiro e gere uma nova produção antes de publicar.')
-    if not 900 <= duration <= 1800:
-        return (f'Este arquivo tem {duration / 60:.1f} minutos. O Estúdio publica vídeos entre 15 e 30 minutos; '
+    if not 300 <= duration <= 1800:
+        return (f'Este arquivo tem {duration / 60:.1f} minutos. O Estúdio publica vídeos entre 5 e 30 minutos; '
                 'gere uma nova produção antes de publicar.')
     return None
 
@@ -752,7 +752,7 @@ def render():
     st.markdown('''
     <section class="studio-hero">
       <h1>Estúdio de vídeos</h1>
-      <p>Crie vídeos de 15–30 minutos, do roteiro ao arquivo final.</p>
+      <p>Crie vídeos de 5–30 minutos, do roteiro ao arquivo final.</p>
       <div class="studio-flow" aria-label="Etapas da produção">
         <span>1 · Pauta</span><span>2 · Embalagem</span><span>3 · Roteiro</span><span>4 · Revisão</span><span>5 · Produção</span>
       </div>
