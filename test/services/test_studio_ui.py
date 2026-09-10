@@ -44,6 +44,21 @@ class StudioUITest(unittest.TestCase):
         self.assertLess(description.index('SOURCES & NOTES'), description.index('Subscribe for the next episode.'))
         self.assertTrue(description.endswith('#Technology #Science'))
 
+    def test_publication_blocks_a_video_when_its_real_duration_misses_the_target(self):
+        short_record = {
+            'title': 'Vídeo curto',
+            'artifacts': {'duration_seconds': 52.09},
+            'params': {'structured_script': {'metadata': {'target_duration_seconds': 1200}}},
+        }
+        valid_record = {
+            'title': 'Vídeo válido',
+            'artifacts': {'duration_seconds': 980.96},
+            'params': {'structured_script': {'metadata': {'target_duration_seconds': 1200}}},
+        }
+        self.assertIn('0.9 minutos', studio._publication_duration_error(short_record))
+        self.assertIn('20 minutos', studio._publication_duration_error(short_record))
+        self.assertIsNone(studio._publication_duration_error(valid_record))
+
     def test_production_controls_appear_only_after_a_script_is_ready(self):
         backend = ModuleType('app.services.studio')
         backend.list_drafts = Mock(return_value=[])

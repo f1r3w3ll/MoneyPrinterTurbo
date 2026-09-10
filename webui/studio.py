@@ -612,6 +612,36 @@ def _publication_language(script):
     return metadata.get('script_language') or channel.get('language') or 'pt-BR'
 
 
+def _publication_duration_error(record):
+    """Reject a completed artifact whose measured duration misses its video brief."""
+    duration = (record.get('artifacts') or {}).get('duration_seconds')
+    try:
+        duration = float(duration)
+    except (TypeError, ValueError):
+        return 'Não foi possível confirmar a duração real deste vídeo. Abra Produções e gere-o novamente antes de publicar.'
+    script = (record.get('params') or {}).get('structured_script') or {}
+    target = (script.get('metadata') or {}).get('target_duration_seconds')
+    try:
+        target = float(target) if target else None
+    except (TypeError, ValueError):
+        target = None
+    if target and not _duration_is_on_target(duration, target):
+        return (f'Este arquivo tem {duration / 60:.1f} minutos, mas a meta desta produção é '
+                f'{target / 60:.0f} minutos. Corrija o roteiro e gere uma nova produção antes de publicar.')
+    if not 900 <= duration <= 1800:
+        return (f'Este arquivo tem {duration / 60:.1f} minutos. O Estúdio publica vídeos entre 15 e 30 minutos; '
+                'gere uma nova produção antes de publicar.')
+    return None
+
+
+def _publication_label(record):
+    duration = (record.get('artifacts') or {}).get('duration_seconds')
+    try:
+        return f"{record['title']} · {float(duration) / 60:.1f} min"
+    except (TypeError, ValueError):
+        return record['title']
+
+
 def _publication(settings):
     st.subheader('Publicação no YouTube')
     backend = importlib.import_module('app.services.studio')
@@ -619,7 +649,11 @@ def _publication(settings):
     if not records:
         st.info('Conclua uma produção para publicá-la.')
         return
-    selected = st.selectbox('Vídeo concluído', records, format_func=lambda item: item['title'], key='publication_video')
+    selected = st.selectbox('Vídeo concluído', records, format_func=_publication_label, key='publication_video')
+    duration_error = _publication_duration_error(selected)
+    if duration_error:
+        st.error(duration_error)
+        return
     title = st.text_input('Título de publicação', value=_youtube_title(_publication_title(selected)), max_chars=100, key=f'publication_title_{selected["id"]}')
     st.caption(f'{len(title)}/100 caracteres')
     if st.button('Gerar descrição com IA', key=f'publication_ai_{selected["id"]}'):
