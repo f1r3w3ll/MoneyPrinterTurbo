@@ -317,4 +317,5 @@ O gerador original foi preservado.
 - A aba Publicação agora confere a duração real do MP4 antes de liberar o
   envio. Se o arquivo estiver fora da faixa de 15–30 minutos ou fora da meta
   persistida para aquela produção, a interface bloqueia a publicação e mostra
-  as durações real e planejada. A lista também mostra a duração de cada vídeo.
+  as durações real e planejada. A lista também mostra duração, tamanho do MP4
+  e data/hora de criação de cada vídeo.

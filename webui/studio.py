@@ -635,11 +635,21 @@ def _publication_duration_error(record):
 
 
 def _publication_label(record):
-    duration = (record.get('artifacts') or {}).get('duration_seconds')
+    artifacts = record.get('artifacts') or {}
+    parts = [record['title']]
     try:
-        return f"{record['title']} · {float(duration) / 60:.1f} min"
+        parts.append(f"{float(artifacts.get('duration_seconds')) / 60:.1f} min")
     except (TypeError, ValueError):
-        return record['title']
+        pass
+    video = Path(artifacts.get('video') or '')
+    if video.is_file():
+        size_mb = video.stat().st_size / (1024 * 1024)
+        parts.append(f'{size_mb:.1f} MB')
+    try:
+        parts.append(datetime.fromtimestamp(float(record['created_at'])).strftime('%d/%m/%Y %H:%M'))
+    except (KeyError, TypeError, ValueError, OSError):
+        pass
+    return ' · '.join(parts)
 
 
 def _publication(settings):

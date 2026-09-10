@@ -1,5 +1,8 @@
 import sys
+import tempfile
 import unittest
+from datetime import datetime
+from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch, Mock
 from streamlit.testing.v1 import AppTest
@@ -58,6 +61,22 @@ class StudioUITest(unittest.TestCase):
         self.assertIn('0.9 minutos', studio._publication_duration_error(short_record))
         self.assertIn('20 minutos', studio._publication_duration_error(short_record))
         self.assertIsNone(studio._publication_duration_error(valid_record))
+
+    def test_publication_label_includes_duration_file_size_and_creation_date(self):
+        with tempfile.TemporaryDirectory() as temp:
+            video = Path(temp) / 'video.mp4'
+            video.write_bytes(b'x' * 2 * 1024 * 1024)
+            created_at = datetime(2026, 9, 9, 15, 11).timestamp()
+            record = {
+                'title': 'Produção identificável',
+                'created_at': created_at,
+                'artifacts': {'duration_seconds': 980.96, 'video': str(video)},
+            }
+            label = studio._publication_label(record)
+            self.assertIn('Produção identificável', label)
+            self.assertIn('16.3 min', label)
+            self.assertIn('2.0 MB', label)
+            self.assertIn(datetime.fromtimestamp(created_at).strftime('%d/%m/%Y %H:%M'), label)
 
     def test_production_controls_appear_only_after_a_script_is_ready(self):
         backend = ModuleType('app.services.studio')
