@@ -326,3 +326,15 @@ O gerador original foi preservado.
   suporta arquivos de até 5 GB segundo a documentação atual da API.
 - A aba Publicação exibe uma barra de progresso durante o envio: bytes enviados
   e percentual por parte, depois o processamento da mídia e a criação do post.
+
+## Idioma por vídeo — 10/09/2026
+
+- A pauta tem um seletor explícito de idioma do vídeo: Português (Brasil),
+  Inglês (EUA), Alemão e Espanhol. Ele usa o idioma do canal apenas como
+  valor inicial, para que um tema em português não herde automaticamente a
+  identidade inglesa do canal.
+- A escolha acompanha a geração de pauta, embalagem, roteiro, narração,
+  legendas e metadados de publicação. A etapa de roteiro mostra o idioma
+  definido na pauta para evitar divergência; produções sem pauta preservam o
+  seletor manual existente. Foram adicionadas embalagens em alemão e vozes
+  padrão `de-DE-ConradNeural` e `de-DE-KatjaNeural`.

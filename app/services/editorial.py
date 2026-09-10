@@ -164,7 +164,7 @@ def _brief(values, topic=''):
 def brief_prompt(topic, profile):
     """Build a constrained prompt for useful, honest YouTube pre-production."""
     profile = _clean(profile, PROFILE_DEFAULTS)
-    language_names = {'pt-BR': 'Brazilian Portuguese', 'en-US': 'English', 'es-ES': 'Spanish'}
+    language_names = {'pt-BR': 'Brazilian Portuguese', 'en-US': 'English', 'de-DE': 'German', 'es-ES': 'Spanish'}
     language = language_names.get(profile['language'], profile['language'])
     return f"""You are a YouTube editorial strategist. Create a concise, original editorial brief in {language} for a long-form video.
 
@@ -246,6 +246,18 @@ def packaging_options(brief, language='pt-BR'):
             {'title': f'Cómo {_shorten_text(topic, 43)} todavía te afecta', 'thumbnail_text': 'AÚN IMPORTA',
              'visual_concept': f'Conexión entre {topic} y una consecuencia actual', 'promise': promise,
              'angle': 'Consecuencia actual'},
+        ]
+    if language == 'de-DE':
+        return [
+            {'title': title_question, 'thumbnail_text': thumbnail_topic,
+             'visual_concept': f'Visueller Kontrast, der zeigt: {thesis}', 'promise': promise,
+             'angle': 'Zentrale Frage'},
+            {'title': f'Was wirklich geschah bei {_shorten_text(topic, 40)}', 'thumbnail_text': 'WAS ÄNDERTE SICH?',
+             'visual_concept': f'Vorher und nachher als Beleg für die These: {thesis}', 'promise': promise,
+             'angle': 'Enthüllung'},
+            {'title': f'Wie {_shorten_text(topic, 43)} dich heute noch betrifft', 'thumbnail_text': 'IMMER NOCH WICHTIG',
+             'visual_concept': f'Verbindung zwischen {topic} und einer heutigen Folge', 'promise': promise,
+             'angle': 'Aktuelle Folge'},
         ]
     return [
         {'title': title_question, 'thumbnail_text': thumbnail_topic,

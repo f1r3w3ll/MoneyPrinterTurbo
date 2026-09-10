@@ -24,6 +24,10 @@ PREMIUM_VOICE_OPTIONS = (
     ('Mulher · inglês', 'elevenlabs:lWq4KDY8znfkV0DrK8Vb'),
     ('Homem · inglês', 'elevenlabs:wBXNqKUATyqu0RtYt25i'),
 )
+VIDEO_LANGUAGE_LABELS = {
+    'pt-BR': 'Português (Brasil)', 'en-US': 'Inglês (EUA)',
+    'de-DE': 'Alemão', 'es-ES': 'Espanhol',
+}
 STUDIO_STYLE = """
 <style>
 .studio-hero {
@@ -94,7 +98,7 @@ def _channel_profile_editor():
         )
         if selected_id != active_id:
             editorial.set_active_channel(selected_id)
-            for key in ('studio_brief', 'generated_studio_brief', 'brief_topic', 'brief_question', 'brief_thesis', 'brief_promise', 'brief_goal', 'brief_sources'):
+            for key in ('studio_brief', 'generated_studio_brief', 'brief_language', 'brief_topic', 'brief_question', 'brief_thesis', 'brief_promise', 'brief_goal', 'brief_sources'):
                 st.session_state.pop(key, None)
             st.rerun()
         with st.form('new_editorial_channel'):
@@ -123,7 +127,10 @@ def _channel_profile_editor():
                 channel_subniche = st.text_input('Recorte', value=profile['subniche'], placeholder='Ex.: decisões que moldaram a internet')
             audience = st.text_input('Público principal', value=profile['audience'])
             promise = st.text_area('Promessa do canal', value=profile['promise'], placeholder='O que a pessoa aprende ou sente ao assistir?')
-            channel_language = st.selectbox('Idioma padrão do canal', ['pt-BR', 'en-US', 'es-ES'], index=['pt-BR', 'en-US', 'es-ES'].index(profile['language'] if profile['language'] in ('pt-BR', 'en-US', 'es-ES') else 'pt-BR'), format_func=lambda value: {'pt-BR': 'Português (Brasil)', 'en-US': 'Inglês (EUA)', 'es-ES': 'Espanhol'}[value])
+            language_options = list(VIDEO_LANGUAGE_LABELS)
+            channel_language = st.selectbox('Idioma padrão do canal', language_options,
+                index=language_options.index(profile['language']) if profile['language'] in language_options else 0,
+                format_func=VIDEO_LANGUAGE_LABELS.get)
             tone = st.selectbox('Tom', ['documentary', 'educational', 'entertaining'], index=['documentary', 'educational', 'entertaining'].index(profile['tone'] if profile['tone'] in ('documentary', 'educational', 'entertaining') else 'documentary'), format_func=lambda value: {'documentary': 'Documentário', 'educational': 'Educacional', 'entertaining': 'Entretenimento'}[value])
             pillars = st.text_area('Pilares e séries', value=profile['pillars'], placeholder='Ex.: guerras da tecnologia; infraestruturas invisíveis')
             visual_style = st.text_input('Direção visual', value=profile['visual_style'], placeholder='Ex.: documental cinematográfica, arquivos e infográficos')
@@ -140,11 +147,6 @@ def _brief_and_packaging(profile):
     st.subheader('1 · Pauta e embalagem')
     st.caption('Comece pela pergunta e pela promessa. Depois escolha uma embalagem que o roteiro realmente entrega.')
     profile_language = profile.get('language', 'pt-BR')
-    if st.session_state.get('packaging_language') != profile_language:
-        for key in list(st.session_state):
-            if key.startswith('packaging_'):
-                st.session_state.pop(key, None)
-        st.session_state.packaging_language = profile_language
     if generated := st.session_state.pop('generated_studio_brief', None):
         st.session_state.studio_brief = generated
         st.session_state.brief_topic = generated['topic']
@@ -153,6 +155,7 @@ def _brief_and_packaging(profile):
         st.session_state.brief_promise = generated['promise']
         st.session_state.brief_goal = generated['goal']
         st.session_state.brief_sources = generated['sources']
+        st.session_state.brief_language = generated.get('language', profile_language)
     prior = st.session_state.get('studio_brief', {})
     with st.expander('Definir pauta', expanded=True):
         topic_column, provider_column, action_column = st.columns([3, 1.25, 1.45])
@@ -163,13 +166,24 @@ def _brief_and_packaging(profile):
         with action_column:
             st.caption(' ')
             generate_brief = st.button('Gerar pauta com IA', key='generate_brief', type='secondary', use_container_width=True)
+        language_options = list(VIDEO_LANGUAGE_LABELS)
+        default_language = prior.get('language') or profile_language
+        video_language = st.radio('Idioma do vídeo', language_options,
+            index=language_options.index(default_language) if default_language in language_options else 0,
+            format_func=VIDEO_LANGUAGE_LABELS.get, horizontal=True, key='brief_language')
+        if st.session_state.get('packaging_language') != video_language:
+            for key in list(st.session_state):
+                if key.startswith('packaging_'):
+                    st.session_state.pop(key, None)
+            st.session_state.packaging_language = video_language
         if generate_brief:
             if not topic.strip():
                 st.error('Informe o tema do vídeo antes de gerar a pauta.')
             else:
                 with st.spinner('Estruturando a pauta…'):
                     try:
-                        generated = editorial.generate_brief(topic, profile, provider)
+                        generated = editorial.generate_brief(topic, {**profile, 'language': video_language}, provider)
+                        generated['language'] = video_language
                         st.session_state.generated_studio_brief = generated
                         st.rerun()
                     except Exception as exc:
@@ -180,14 +194,14 @@ def _brief_and_packaging(profile):
         goal = st.selectbox('Objetivo', ['Descoberta', 'Busca', 'Retorno ao canal'], key='brief_goal')
         sources = st.text_area('Fontes, links ou notas para checagem', value=prior.get('sources', ''), key='brief_sources', placeholder='Registre hipóteses e referências antes de tratá-las como fatos.')
         st.caption('A IA propõe uma pauta inicial com base no tema e na identidade editorial. Revise os fatos, fontes e a promessa antes de gerar o roteiro.')
-        brief = {'topic': topic.strip(), 'central_question': question.strip(), 'thesis': thesis.strip(), 'promise': promise.strip(), 'goal': goal, 'sources': sources.strip()}
+        brief = {'topic': topic.strip(), 'central_question': question.strip(), 'thesis': thesis.strip(), 'promise': promise.strip(), 'goal': goal, 'sources': sources.strip(), 'language': video_language}
         st.session_state.studio_brief = brief
 
     if not brief['topic']:
         st.info('Defina o tema para criar títulos e thumbnail alinhados à pauta.')
         return brief, None
 
-    options = editorial.packaging_options(brief, language=profile_language)
+    options = editorial.packaging_options(brief, language=brief['language'])
     with st.expander('2 · Escolher embalagem', expanded=True):
         selected_index = st.radio('Ângulo de título e thumbnail', range(len(options)), format_func=lambda index: f"{options[index]['angle']} · {options[index]['title']}", horizontal=False, key='packaging_choice')
         selected = dict(options[selected_index])
@@ -253,9 +267,13 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
             model_notice = model_status_message(provider, settings.get('llm', {}).get(provider, {}).get('model', ''))
             if model_notice:
                 st.warning(model_notice)
-            language_options = ['pt-BR', 'en-US', 'es-ES']
-            default_language = (profile or {}).get('language', 'pt-BR')
-            language = st.selectbox('Idioma da narração', language_options, index=language_options.index(default_language) if default_language in language_options else 0)
+            language_options = list(VIDEO_LANGUAGE_LABELS)
+            brief_language = (brief or {}).get('language')
+            default_language = brief_language or (profile or {}).get('language', 'pt-BR')
+            language = st.selectbox('Idioma da narração', language_options,
+                index=language_options.index(default_language) if default_language in language_options else 0,
+                format_func=VIDEO_LANGUAGE_LABELS.get, disabled=bool(brief_language),
+                help='Definido na pauta para manter pauta, embalagem e roteiro no mesmo idioma.' if brief_language else None)
             style = st.selectbox('Estilo do roteiro', ['educational', 'documentary', 'entertaining'], format_func=lambda x: {'educational': 'Educacional', 'documentary': 'Documentário', 'entertaining': 'Entretenimento'}[x])
             audience = st.text_input('Público-alvo')
             instructions = st.text_area('Orientações adicionais')
@@ -269,7 +287,7 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
                         try:
                             editorial_context = None
                             if brief and selected_package:
-                                editorial_context = {'channel': profile or {}, 'brief': dict(brief, topic=topic.strip()), 'selected_package': selected_package}
+                                editorial_context = {'channel': {**(profile or {}), 'language': language}, 'brief': dict(brief, topic=topic.strip()), 'selected_package': selected_package}
                             result = ScriptGeneratorService().generate_script(ScriptGenerationRequest(topic=topic, duration_minutes=minutes, llm_provider=provider, custom_instructions=instructions, language=language, style=style, target_audience=audience, editorial_context=editorial_context))
                             script = result[0] if isinstance(result, tuple) else result
                             data = script.model_dump()
@@ -393,7 +411,7 @@ def _produce(backend, settings, script):
     st.session_state.setdefault('output_thumbnail_text', script['title'] if script else '')
     thumbnail_text = st.text_input('Texto da thumbnail', key='output_thumbnail_text')
     thumbnail_style = st.selectbox('Estilo da thumbnail', ['hybrid', 'ai-only', 'template'], key='output_thumbnail_style')
-    voices = ['pt-BR-AntonioNeural', 'pt-BR-FranciscaNeural', 'en-US-GuyNeural', 'en-US-JennyNeural', 'es-ES-AlvaroNeural', 'es-ES-ElviraNeural']
+    voices = ['pt-BR-AntonioNeural', 'pt-BR-FranciscaNeural', 'en-US-GuyNeural', 'en-US-JennyNeural', 'de-DE-ConradNeural', 'de-DE-KatjaNeural', 'es-ES-AlvaroNeural', 'es-ES-ElviraNeural']
     premium = settings.get('premium_tts', {})
     premium_voices = [voice for _, voice in PREMIUM_VOICE_OPTIONS]
     if not (importlib.util.find_spec('elevenlabs') and premium.get('elevenlabs_configured')):
@@ -671,7 +689,7 @@ def _publication(settings):
             from app.services.script_generator import ScriptGeneratorService
             project = backend.get_project(selected['id'])
             language = _publication_language(project['script'])
-            language_name = {'en-US': 'English', 'pt-BR': 'Brazilian Portuguese', 'es-ES': 'Spanish'}.get(language, language)
+            language_name = {'en-US': 'English', 'pt-BR': 'Brazilian Portuguese', 'de-DE': 'German', 'es-ES': 'Spanish'}.get(language, language)
             prompt = f"""Generate YouTube publication metadata exclusively in {language_name}. Return exactly one JSON object with these fields and no others:
 {{
   \"summary\": \"two concise paragraphs explaining the video promise and value\",

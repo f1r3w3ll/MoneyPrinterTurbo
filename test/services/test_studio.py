@@ -80,6 +80,20 @@ class StudioTests(unittest.TestCase):
         self.assertIn('AI still affects you', options[2]['title'])
         self.assertIn('Visual contrast', options[0]['visual_concept'])
 
+    def test_german_video_language_drives_brief_and_packaging(self):
+        from app.services import editorial
+
+        prompt = editorial.brief_prompt('Warum Rechenzentren wichtig sind', {'language': 'de-DE'})
+        options = editorial.packaging_options({
+            'topic': 'Rechenzentren', 'central_question': 'Warum sind Rechenzentren wichtig?',
+            'thesis': 'Sie tragen die digitale Wirtschaft.', 'promise': 'Verstehe ihre Bedeutung.',
+        }, language='de-DE')
+
+        self.assertIn('German', prompt)
+        self.assertEqual(options[0]['angle'], 'Zentrale Frage')
+        self.assertIn('Was wirklich geschah', options[1]['title'])
+        self.assertIn('Visueller Kontrast', options[0]['visual_concept'])
+
     def test_packaging_titles_keep_a_readable_youtube_length(self):
         from app.services import editorial
         options = editorial.packaging_options({

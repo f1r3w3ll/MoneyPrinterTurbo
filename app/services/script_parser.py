@@ -21,6 +21,7 @@ class ScriptParser:
     NARRATION_CHARS_PER_SECOND = {
         "pt-BR": 14.0,
         "en-US": 13.0,
+        "de-DE": 13.5,
         "es-ES": 13.5,
     }
 
