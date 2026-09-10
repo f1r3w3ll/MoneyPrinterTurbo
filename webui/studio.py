@@ -721,11 +721,10 @@ Do not place headings inside any field. Use the supplied scene timing for chapte
                 upload_progress.progress(max(0.0, min(1.0, fraction)),
                     text=f'{phase} · {sent / (1024 * 1024):.1f} MB de {total / (1024 * 1024):.1f} MB')
 
-            result = woopsocial.publish(selected['artifacts']['video'], project['id'], account['id'], title, description,
-                                        privacy, scheduled_at, tags=tags, progress=report_upload)
+            woopsocial.publish(selected['artifacts']['video'], project['id'], account['id'], title, description,
+                               privacy, scheduled_at, tags=tags, progress=report_upload)
             upload_progress.progress(1.0, text='Publicação enviada à WoopSocial.')
             st.success('Publicação enviada à WoopSocial.')
-            st.json(result)
         except Exception as exc:
             st.error(redact(exc))
 
