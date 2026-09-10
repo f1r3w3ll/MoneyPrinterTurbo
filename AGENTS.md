@@ -319,3 +319,8 @@ O gerador original foi preservado.
   persistida para aquela produção, a interface bloqueia a publicação e mostra
   as durações real e planejada. A lista também mostra duração, tamanho do MP4
   e data/hora de criação de cada vídeo.
+- O upload direto da WoopSocial sofreu um `524` do Cloudflare para um MP4 de
+  55,4 MB, mesmo abaixo do limite documentado de 100 MB. Para MP4s a partir de
+  25 MB, `woopsocial.py` usa a sessão de upload em partes com URLs
+  pré-assinadas e espera a mídia ficar pronta antes de criar o post. Esse fluxo
+  suporta arquivos de até 5 GB segundo a documentação atual da API.

@@ -398,6 +398,32 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(request.call_args_list[1].args[0], f'{woopsocial.BASE_URL}/posts/validate')
             self.assertEqual(request.call_args_list[2].args[0], f'{woopsocial.BASE_URL}/posts')
 
+    def test_woopsocial_uses_upload_session_for_larger_videos(self):
+        from app.services import woopsocial
+        with tempfile.TemporaryDirectory() as tmp:
+            video = Path(tmp) / 'video.mp4'
+            video.write_bytes(b'video')
+            session = Mock(); session.json.return_value = {
+                'uploadSessionId': 'session-1', 'partSizeInBytes': 10, 'partCount': 1,
+                'parts': [{'partNumber': 1, 'uploadUrl': 'https://upload.example/part-1'}],
+            }
+            completed = Mock(); completed.json.return_value = {'uploadSessionId': 'session-1', 'status': 'UPLOADED'}
+            ready = Mock(); ready.json.return_value = {'uploadSessionId': 'session-1', 'status': 'READY', 'mediaId': 'media-1'}
+            validation = Mock(); validation.json.return_value = {'isValid': True, 'errors': []}
+            posted = Mock(); posted.json.return_value = {'id': 'post-1'}
+            uploaded_part = Mock()
+            with patch('app.services.woopsocial.requests.post', side_effect=[session, completed, validation, posted]) as post, \
+                 patch('app.services.woopsocial.requests.put', return_value=uploaded_part) as put, \
+                 patch('app.services.woopsocial.requests.get', return_value=ready), \
+                 patch('app.services.woopsocial._headers', return_value={'Authorization': 'Bearer test'}), \
+                 patch.object(woopsocial, 'CHUNKED_UPLOAD_THRESHOLD_BYTES', 1):
+                self.assertEqual(woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private'), {'id': 'post-1'})
+            self.assertEqual(post.call_args_list[0].args[0], f'{woopsocial.BASE_URL}/media/upload-sessions')
+            self.assertEqual(post.call_args_list[0].kwargs['json'], {'projectId': 'project-1', 'fileSizeInBytes': 5})
+            put.assert_called_once_with('https://upload.example/part-1', data=b'video', timeout=600)
+            self.assertEqual(post.call_args_list[1].args[0], f'{woopsocial.BASE_URL}/media/upload-sessions/session-1/complete')
+            self.assertEqual(post.call_args_list[2].args[0], f'{woopsocial.BASE_URL}/posts/validate')
+
     def test_woopsocial_stops_when_upload_response_has_no_media_id(self):
         from app.services import woopsocial
         with tempfile.TemporaryDirectory() as tmp:
