@@ -78,6 +78,10 @@ class StudioUITest(unittest.TestCase):
             self.assertIn('2.0 MB', label)
             self.assertIn(datetime.fromtimestamp(created_at).strftime('%d/%m/%Y %H:%M'), label)
 
+    def test_elapsed_production_time_uses_start_timestamp(self):
+        record = {'created_at': 100.0, 'started_at': 120.0}
+        self.assertEqual(studio._production_elapsed_label(record, now=185.0), '01:05')
+
     def test_production_controls_appear_only_after_a_script_is_ready(self):
         backend = ModuleType('app.services.studio')
         backend.list_drafts = Mock(return_value=[])
@@ -90,6 +94,7 @@ class StudioUITest(unittest.TestCase):
             self.assertTrue(any('Salve um roteiro' in item.value for item in app.info))
             app.button(key='new_script').click().run()
             self.assertIn('produce', [button.key for button in app.button])
+            self.assertEqual(app.selectbox(key='output_aspect').value, 'Paisagem · 16:9')
 
     def test_editor_saved_and_submission_not_repeated_on_rerun(self):
         backend = ModuleType('app.services.studio')
@@ -174,4 +179,3 @@ class StudioUITest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

@@ -213,7 +213,9 @@ def _run(identifier):
         record = _read(folder / 'production.json')
     def report(phase, progress):
         with _lock:
-            record.update(status='running', phase=phase, progress=progress, updated_at=time.time())
+            now = time.time()
+            record.setdefault('started_at', now)
+            record.update(status='running', phase=phase, progress=progress, updated_at=now)
             _write(folder / 'production.json', record)
             sm.state.update_task(identifier, progress=progress, phase=phase)
     try:

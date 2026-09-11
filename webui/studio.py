@@ -2,6 +2,7 @@
 import importlib
 import importlib.util
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -28,6 +29,17 @@ VIDEO_LANGUAGE_LABELS = {
     'pt-BR': 'Português (Brasil)', 'en-US': 'Inglês (EUA)',
     'de-DE': 'Alemão', 'es-ES': 'Espanhol',
 }
+
+
+def _production_elapsed_label(record, now=None):
+    """Format the time spent by a production from its effective start."""
+    started_at = record.get('started_at') or record.get('created_at')
+    if not started_at:
+        return '00:00'
+    elapsed = max(0, int((time.time() if now is None else now) - float(started_at)))
+    minutes, seconds = divmod(elapsed, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f'{hours:02d}:{minutes:02d}:{seconds:02d}' if hours else f'{minutes:02d}:{seconds:02d}'
 STUDIO_STYLE = """
 <style>
 .studio-hero {
@@ -439,7 +451,7 @@ def _produce(backend, settings, script):
     st.subheader('5 · Produza o vídeo')
     image_provider = st.selectbox('Imagens', ['dalle', 'sd'], format_func=lambda p: {'dalle': 'DALL-E · OpenAI', 'sd': 'Stable Diffusion · Replicate'}[p])
     aspect_options = {'Retrato · 9:16': '9:16', 'Paisagem · 16:9': '16:9'}
-    aspect_label = st.selectbox('Proporção do vídeo', list(aspect_options), key='output_aspect')
+    aspect_label = st.selectbox('Proporção do vídeo', list(aspect_options), index=1, key='output_aspect')
     aspect = aspect_options[aspect_label]
     animated_intro = st.checkbox(
         'Abertura animada',
@@ -533,6 +545,7 @@ def _active_production_monitor(task_id):
     phase = PHASES.get(record.get('phase'), record.get('phase') or 'Processando')
     st.subheader('Acompanhamento da produção')
     st.progress(max(0.0, min(1.0, progress / 100)), text=f'{phase} · {progress:.0f}%')
+    st.caption(f"Tempo decorrido: {_production_elapsed_label(record)}")
     if record.get('status') == 'complete':
         st.success('Vídeo concluído. Abra Produções para assistir ou baixar os arquivos.')
     elif record.get('status') in ('failed', 'interrupted'):
