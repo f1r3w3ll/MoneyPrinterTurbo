@@ -9,7 +9,7 @@ from app.services.checkpoint import CheckpointManager
 from app.services.script_parser import ScriptParser
 from app.services.studio_storage import write_json
 from app.services.longform_media import (generate_scene_audio, generate_scene_image, compose,
-    valid_audio, valid_image, valid_video, make_thumbnail, write_subtitles)
+    valid_audio, valid_image, valid_video, make_thumbnail, write_subtitles, append_cta)
 
 
 def run(task_id, params, folder, report=None, stop_at='complete'):
@@ -80,6 +80,7 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
             data['video'] = compose(ordered, params, folder,
                 progress=lambda fraction: report('composition', 60 + int(fraction * 30)),
                 output_name=f'{folder.name}.mp4')
+            data['video'] = append_cta(data['video'], params, folder)
         save('thumbnail', 92)
         if stop_at != 'video' and not valid_image(data.get('thumbnail')):
             data['thumbnail'] = make_thumbnail(script, params, folder)

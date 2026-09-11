@@ -146,6 +146,21 @@ def _public_params(params):
     return clean(params.model_dump(mode='json'))
 
 
+def _freeze_cta_assets(params, folder):
+    """Copy channel assets into a production so later profile edits cannot break it."""
+    assets = Path(folder) / 'assets'
+    updates = {}
+    for field, filename in (('channel_logo_path', 'logo'), ('cta_asset_path', 'cta')):
+        source = Path(getattr(params, field, '') or '')
+        if not source.is_file():
+            continue
+        target = assets / f'{filename}{source.suffix.lower()}'
+        assets.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        updates[field] = str(target)
+    return params.model_copy(update=updates) if updates else params
+
+
 def submit(params):
     if not params.structured_script:
         raise ValueError('Gere ou importe um roteiro antes de produzir.')
@@ -155,6 +170,7 @@ def submit(params):
         raise ValueError('\n'.join(errors))
     identifier = production_identifier(params.structured_script.title)
     with _lock:
+        params = _freeze_cta_assets(params, _folder(identifier))
         now = time.time()
         record = dict(id=identifier, title=params.structured_script.title, status='queued', phase='queue',
             progress=0, error=None, params=_public_params(params), artifacts={}, created_at=now, updated_at=now)

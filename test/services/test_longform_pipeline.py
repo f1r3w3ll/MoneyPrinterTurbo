@@ -180,6 +180,59 @@ class LongformTests(unittest.TestCase):
                 self.assertEqual(clip.size, [160, 90])
             self.assertFalse(valid_video(result, expected_duration=10.))
 
+    def test_text_cta_appends_a_logo_endcard(self):
+        from app.services.longform_media import append_cta, valid_video
+        from PIL import Image
+        from moviepy import AudioClip, ColorClip, VideoFileClip
+
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            source = folder / 'source.mp4'
+            logo = folder / 'logo.png'
+            Image.new('RGBA', (80, 80), '#20b7a4').save(logo)
+            audio = AudioClip(lambda t: 0 * t, duration=1, fps=8000)
+            clip = ColorClip((160, 90), color=(16, 40, 70), duration=1).with_audio(audio)
+            clip.write_videofile(str(source), fps=12, codec='libx264', audio_codec='aac', logger=None)
+            clip.close(); audio.close()
+            params = LongFormVideoParams(
+                video_subject='Teste', cta_mode='text', cta_text='Subscribe for more',
+                channel_logo_path=str(logo), bgm_type='',
+            )
+
+            result = append_cta(str(source), params, folder, resolution=(160, 90), fps=12)
+
+            self.assertTrue(valid_video(result))
+            with VideoFileClip(result) as rendered:
+                self.assertAlmostEqual(rendered.duration, 6., delta=.3)
+
+    def test_pipeline_appends_configured_cta_after_composition(self):
+        from app.services import longform_pipeline as pipeline
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            params = LongFormVideoParams(
+                video_subject='Teste', structured_script=example_script(), cta_mode='text',
+                cta_text='Subscribe', bgm_type='',
+            )
+            def audio(scene, _params, target):
+                Path(target).write_bytes(b'audio')
+                return {'path': str(target), 'duration': 3., 'cues': []}
+            def image(scene, _params, target):
+                Path(target).write_bytes(b'image')
+                return str(target)
+            def render(*_args, **_kwargs):
+                target = folder / 'final.mp4'
+                target.write_bytes(b'video')
+                return str(target)
+            with patch.object(pipeline, 'generate_scene_audio', side_effect=audio), \
+                 patch.object(pipeline, 'generate_scene_image', side_effect=image), \
+                 patch.object(pipeline, 'compose', side_effect=render), \
+                 patch.object(pipeline, 'valid_audio', side_effect=bool), \
+                 patch.object(pipeline, 'valid_image', side_effect=bool), \
+                 patch.object(pipeline, 'valid_video', side_effect=lambda value, **_kw: bool(value)), \
+                 patch.object(pipeline, 'append_cta', return_value=str(folder / 'final.mp4')) as append:
+                pipeline.run('test-cta', params, folder, stop_at='video')
+            append.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()

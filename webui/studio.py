@@ -156,6 +156,24 @@ def _channel_profile_editor():
                 placeholder='Ex.: Subscribe for the next episode.',
                 help='Será sugerido ao gerar roteiros e poderá ser alterado em cada vídeo.',
             )
+            cta_modes = {'Somente texto e logo': 'text', 'Imagem em tela cheia': 'image', 'Vídeo ao final': 'video'}
+            saved_cta_mode = profile.get('cta_mode', 'text')
+            cta_mode_label = st.selectbox(
+                'Formato visual do CTA', list(cta_modes),
+                index=list(cta_modes.values()).index(saved_cta_mode) if saved_cta_mode in cta_modes.values() else 0,
+                help='Texto exibe a logo centralizada e a chamada abaixo. Imagem ou vídeo substitui essa tela final.',
+            )
+            logo_upload = st.file_uploader('Logo do canal', type=['png', 'jpg', 'jpeg', 'webp'],
+                                           help='Usada na tela final quando o CTA for somente texto.')
+            cta_upload = None
+            if cta_modes[cta_mode_label] == 'image':
+                cta_upload = st.file_uploader('Imagem do CTA', type=['png', 'jpg', 'jpeg', 'webp'])
+            elif cta_modes[cta_mode_label] == 'video':
+                cta_upload = st.file_uploader('Vídeo do CTA', type=['mp4', 'mov', 'webm'])
+            if profile.get('logo_path'):
+                st.caption('Logo atual cadastrada. Envie outro arquivo para substituí-la.')
+            if profile.get('cta_asset_path'):
+                st.caption('Ativo visual de CTA já cadastrado. Um novo envio o substitui.')
             language_options = list(VIDEO_LANGUAGE_LABELS)
             channel_language = st.selectbox('Idioma padrão do canal', language_options,
                 index=language_options.index(profile['language']) if profile['language'] in language_options else 0,
@@ -166,9 +184,20 @@ def _channel_profile_editor():
             source_policy = st.text_area('Política de fontes', value=profile['source_policy'], placeholder='Ex.: priorizar fontes primárias e indicar incertezas')
             restricted = st.text_input('Assuntos ou abordagens a evitar', value=profile['restricted_topics'])
             if st.form_submit_button('Salvar identidade editorial'):
-                editorial.save_channel_profile({'name': name, 'niche': channel_niche, 'subniche': channel_subniche, 'audience': audience, 'promise': promise, 'default_cta': default_cta, 'language': channel_language, 'tone': tone, 'pillars': pillars, 'visual_style': visual_style, 'source_policy': source_policy, 'restricted_topics': restricted})
-                st.success('Identidade editorial salva.')
-                profile = editorial.get_channel_profile()
+                try:
+                    channel_id = editorial.active_channel_id()
+                    logo_path = profile.get('logo_path', '')
+                    asset_path = profile.get('cta_asset_path', '')
+                    if logo_upload:
+                        logo_path = editorial.save_channel_asset(channel_id, logo_upload.name, logo_upload.getvalue(), 'logo')
+                    if cta_upload:
+                        asset_path = editorial.save_channel_asset(channel_id, cta_upload.name, cta_upload.getvalue(), cta_modes[cta_mode_label])
+                    editorial.save_channel_profile({'name': name, 'niche': channel_niche, 'subniche': channel_subniche, 'audience': audience, 'promise': promise, 'default_cta': default_cta, 'logo_path': logo_path, 'cta_mode': cta_modes[cta_mode_label], 'cta_asset_path': asset_path, 'language': channel_language, 'tone': tone, 'pillars': pillars, 'visual_style': visual_style, 'source_policy': source_policy, 'restricted_topics': restricted})
+                except ValueError as exc:
+                    st.error(str(exc))
+                else:
+                    st.success('Identidade editorial salva.')
+                    profile = editorial.get_channel_profile()
     return profile
 
 
@@ -318,6 +347,15 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
                 disabled=not use_cta,
                 help='Você pode adaptar o CTA para este vídeo sem alterar o perfil do canal.',
             )
+            cta_visual_modes = {'Texto e logo do canal': 'text', 'Imagem do canal': 'image', 'Vídeo do canal': 'video'}
+            profile_cta_mode = (profile or {}).get('cta_mode', 'text')
+            cta_visual_label = st.selectbox(
+                'Formato visual deste CTA', list(cta_visual_modes),
+                index=list(cta_visual_modes.values()).index(profile_cta_mode) if profile_cta_mode in cta_visual_modes.values() else 0,
+                disabled=not use_cta,
+            )
+            if use_cta and cta_visual_modes[cta_visual_label] != 'text' and not (profile or {}).get('cta_asset_path'):
+                st.caption('Cadastre a imagem ou o vídeo na identidade editorial do canal antes de produzir.')
             st.caption('A geração usa a API configurada e pode gerar custos.')
             if st.form_submit_button('Gerar roteiro'):
                 if not topic.strip():
@@ -327,7 +365,12 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
                     with st.spinner('Escrevendo roteiro…'):
                         try:
                             editorial_context = {
-                                'cta': {'enabled': use_cta, 'text': cta_text.strip()},
+                                'cta': {
+                                    'enabled': use_cta, 'text': cta_text.strip(),
+                                    'mode': cta_visual_modes[cta_visual_label],
+                                    'asset_path': (profile or {}).get('cta_asset_path', ''),
+                                    'logo_path': (profile or {}).get('logo_path', ''),
+                                },
                             }
                             if brief and selected_package:
                                 editorial_context.update({
@@ -465,6 +508,9 @@ def _produce(backend, settings, script):
     st.session_state.setdefault('output_thumbnail_text', script['title'] if script else '')
     thumbnail_text = st.text_input('Texto da thumbnail', key='output_thumbnail_text')
     thumbnail_style = st.selectbox('Estilo da thumbnail', ['hybrid', 'ai-only', 'template'], key='output_thumbnail_style')
+    editorial_cta = ((script.get('metadata') or {}).get('editorial') or {}).get('cta') or {}
+    if editorial_cta.get('enabled'):
+        st.caption(f"CTA final: { {'text': 'texto e logo', 'image': 'imagem', 'video': 'vídeo'}.get(editorial_cta.get('mode'), 'texto e logo') }")
     voices = ['pt-BR-AntonioNeural', 'pt-BR-FranciscaNeural', 'en-US-GuyNeural', 'en-US-JennyNeural', 'de-DE-ConradNeural', 'de-DE-KatjaNeural', 'es-ES-AlvaroNeural', 'es-ES-ElviraNeural']
     premium = settings.get('premium_tts', {})
     premium_voices = [voice for _, voice in PREMIUM_VOICE_OPTIONS]
@@ -523,6 +569,10 @@ def _produce(backend, settings, script):
             subtitle_enabled=subtitles,
             thumbnail_text=thumbnail_text,
             thumbnail_style=thumbnail_style,
+            cta_mode=editorial_cta.get('mode', 'text') if editorial_cta.get('enabled') else 'text',
+            cta_text=editorial_cta.get('text', '') if editorial_cta.get('enabled') else '',
+            cta_asset_path=editorial_cta.get('asset_path', '') if editorial_cta.get('enabled') else '',
+            channel_logo_path=editorial_cta.get('logo_path', '') if editorial_cta.get('enabled') else '',
         )
         errors = backend.validate_settings(params)
         if errors:

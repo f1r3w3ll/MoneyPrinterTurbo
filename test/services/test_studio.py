@@ -27,6 +27,20 @@ class StudioTests(unittest.TestCase):
                 'Inscreva-se para o próximo episódio.',
             )
 
+    def test_channel_profile_saves_logo_and_cta_asset(self):
+        from app.services import editorial
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
+            logo = editorial.save_channel_asset('canal-atlas', 'logo.png', b'png', 'logo')
+            cta = editorial.save_channel_asset('canal-atlas', 'cta.jpg', b'jpg', 'cta')
+            saved = editorial.save_channel_profile({
+                'name': 'Canal Atlas', 'niche': 'Ciência', 'logo_path': str(logo),
+                'cta_mode': 'image', 'cta_asset_path': str(cta),
+            })
+
+            self.assertEqual(saved['cta_mode'], 'image')
+            self.assertTrue(Path(saved['logo_path']).is_file())
+            self.assertTrue(Path(saved['cta_asset_path']).is_file())
     def test_longform_params_keep_animated_intro_choice(self):
         params = LongFormVideoParams(video_subject='Teste', animated_intro=True)
 
@@ -46,6 +60,38 @@ class StudioTests(unittest.TestCase):
             finally:
                 studio._release(identifier)
 
+    def test_production_copies_configured_cta_assets(self):
+        from app.services import studio
+
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(studio, 'ROOT', Path(tmp)), \
+             patch.object(studio, 'validate_settings', return_value=[]), \
+             patch.object(studio, '_manager'):
+            logo = Path(tmp) / 'logo.png'
+            logo.write_bytes(b'logo')
+            params = LongFormVideoParams(video_subject='Teste', structured_script=example_script(),
+                use_structured_script=True, cta_mode='text', cta_text='Subscribe', channel_logo_path=str(logo))
+            identifier = studio.submit(params)
+            try:
+                saved = studio.get_production(identifier)['params']['channel_logo_path']
+                self.assertTrue(Path(saved).is_file())
+                self.assertIn(identifier, saved)
+            finally:
+                studio._release(identifier)
+
+    def test_cta_validation_rejects_asset_with_wrong_media_type(self):
+        from app.services.studio_settings import validate_settings
+        with tempfile.TemporaryDirectory() as tmp:
+            asset = Path(tmp) / 'cta.mp4'
+            asset.write_bytes(b'not-an-image')
+            settings = {
+                'image_generation': {'openai_configured': True, 'sd_configured': False},
+                'premium_tts': {'elevenlabs_configured': False},
+            }
+            params = LongFormVideoParams(video_subject='Teste', cta_mode='image', cta_asset_path=str(asset))
+            with patch('app.services.studio_settings.get_settings', return_value=settings):
+                errors = validate_settings(params)
+            self.assertIn('Envie um arquivo compatível com o CTA selecionado.', errors)
     def test_structured_script_accepts_five_minute_target(self):
         from app.services.script_parser import ScriptParser
 

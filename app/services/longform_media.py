@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
-from moviepy import AudioFileClip, VideoClip, VideoFileClip, concatenate_videoclips
+from moviepy import AudioClip, AudioFileClip, VideoClip, VideoFileClip, concatenate_videoclips
 
 from app.config import config
 from app.utils import utils
@@ -304,6 +304,112 @@ def compose(entries, params, folder, progress=None, output_name='final.mp4', res
     for output in outputs:
         os.remove(output)
     return result
+
+
+def _cta_font(size):
+    font_path = Path(utils.root_dir()) / 'resource/fonts/MicrosoftYaHeiBold.ttc'
+    try:
+        return ImageFont.truetype(str(font_path), size)
+    except OSError:
+        return ImageFont.load_default()
+
+
+def _cta_text_card(params, size):
+    """Create the branded text CTA card, keeping the logo above the message."""
+    width, height = size
+    image = Image.new('RGB', size, '#07111f')
+    logo_path = getattr(params, 'channel_logo_path', '')
+    if valid_image(logo_path):
+        with Image.open(logo_path) as logo:
+            logo = logo.convert('RGBA')
+            logo.thumbnail((int(width * .38), int(height * .42)), Image.Resampling.LANCZOS)
+            x = (width - logo.width) // 2
+            y = max(int(height * .12), (height - logo.height) // 3)
+            image.paste(logo, (x, y), logo)
+    message = str(getattr(params, 'cta_text', '') or '').strip()
+    if not message:
+        return image
+    draw = ImageDraw.Draw(image)
+    font = _cta_font(max(18, min(72, width // 18)))
+    lines, line = [], ''
+    for word in message.split():
+        candidate = f'{line} {word}'.strip()
+        if draw.textlength(candidate, font=font) > width * .82 and line:
+            lines.append(line)
+            line = word
+        else:
+            line = candidate
+    if line:
+        lines.append(line)
+    text = '\n'.join(lines)
+    box = draw.multiline_textbbox((0, 0), text, font=font, spacing=10, align='center')
+    text_width, text_height = box[2] - box[0], box[3] - box[1]
+    x = (width - text_width) / 2
+    y = max(height * .62, height - text_height - height * .12)
+    draw.multiline_text((x, y), text, font=font, fill='white', spacing=10, align='center',
+                        stroke_width=2, stroke_fill='#000000')
+    return image
+
+
+def _silent_audio(duration):
+    def frame(time):
+        if isinstance(time, np.ndarray):
+            return np.zeros((len(time), 2))
+        return np.zeros(2)
+    return AudioClip(frame, duration=duration, fps=44100)
+
+
+def append_cta(video_path, params, folder, resolution=None, fps=24):
+    """Append a short branded CTA card or supplied CTA media to a completed video."""
+    mode = str(getattr(params, 'cta_mode', 'text') or 'text').lower()
+    text = str(getattr(params, 'cta_text', '') or '').strip()
+    asset_path = str(getattr(params, 'cta_asset_path', '') or '')
+    if mode == 'text' and not text:
+        return video_path
+    if mode == 'image' and not valid_image(asset_path):
+        return video_path
+    if mode == 'video' and not nonempty(asset_path):
+        return video_path
+    size = resolution or (1280, 720)
+    folder = Path(folder)
+    target = folder / f'{Path(video_path).stem}-with-cta.mp4'
+    resources = []
+    try:
+        base = VideoFileClip(str(video_path))
+        resources.append(base)
+        if mode == 'video':
+            card = VideoFileClip(asset_path)
+            resources.append(card)
+            duration = min(15., card.duration)
+            card = card.subclipped(0, duration).resized(new_size=size)
+            if card.audio is None:
+                card = card.with_audio(_silent_audio(duration))
+            resources.append(card)
+        else:
+            duration = 5.
+            if mode == 'image':
+                with Image.open(asset_path) as picture:
+                    frame = np.asarray(ImageOps.fit(picture.convert('RGB'), size, method=Image.Resampling.LANCZOS))
+            else:
+                frame = np.asarray(_cta_text_card(params, size))
+            card = VideoClip(lambda _time: frame, duration=duration).with_audio(_silent_audio(duration))
+            resources.append(card)
+        joined = concatenate_videoclips([base, card], method='compose')
+        resources.append(joined)
+        from app.services import video
+        video._write_videofile_with_codec_fallback(joined, str(target), codec='libx264', fps=fps,
+            audio_codec='aac', audio_bitrate='192k', threads=params.n_threads or 2, logger=None,
+            temp_audiofile=str(folder / f'{target.stem}.m4a'))
+        if not valid_video(target):
+            raise RuntimeError('A tela final de CTA não foi renderizada corretamente.')
+        os.replace(target, video_path)
+        return str(video_path)
+    finally:
+        for resource in reversed(resources):
+            try:
+                resource.close()
+            except Exception:
+                pass
 
 
 def make_thumbnail(script, params, folder):

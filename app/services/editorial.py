@@ -10,13 +10,14 @@ from app.services.studio_storage import write_json
 ROOT = Path(config.root_dir) / 'storage' / 'studio'
 PROFILE_FILE = 'channel_profile.json'
 CHANNELS_DIR = 'channels'
+CHANNEL_ASSETS_DIR = 'channel_assets'
 CHANNEL_INDEX_FILE = 'channels.json'
 
 PROFILE_DEFAULTS = {
     'name': '', 'niche': '', 'subniche': '', 'audience': '', 'promise': '',
     'language': 'pt-BR', 'tone': 'documentary', 'pillars': '', 'visual_style': '', 'source_policy': '',
     'restricted_topics': '',
-    'default_cta': '',
+    'default_cta': '', 'logo_path': '', 'cta_mode': 'text', 'cta_asset_path': '',
 }
 
 FIRST_CHANNEL_ID = 'fio-da-ciencia'
@@ -32,7 +33,7 @@ FIRST_CHANNEL_PROFILE = {
     'visual_style': 'Cinematic documentary, archives, clean diagrams and visual comparisons that reveal scale and cause',
     'source_policy': 'Prioritize primary sources, scientific institutions, technical documentation and reliable reviews; state uncertainty and dates.',
     'restricted_topics': 'Sensationalism, evidence-free future claims, pseudoscience, alarmism, and medical, financial or safety advice without qualified sources.',
-    'default_cta': '',
+    'default_cta': '', 'logo_path': '', 'cta_mode': 'text', 'cta_asset_path': '',
 }
 
 BRIEF_DEFAULTS = {
@@ -43,7 +44,10 @@ BRIEF_DEFAULTS = {
 
 def _clean(values, defaults):
     values = values or {}
-    return {key: str(values.get(key, default)).strip() for key, default in defaults.items()}
+    cleaned = {key: str(values.get(key, default)).strip() for key, default in defaults.items()}
+    if cleaned.get('cta_mode') not in ('text', 'image', 'video'):
+        cleaned['cta_mode'] = 'text'
+    return cleaned
 
 
 def _legacy_profile_path():
@@ -56,6 +60,24 @@ def _index_path():
 
 def _channel_path(channel_id):
     return ROOT / CHANNELS_DIR / f'{channel_id}.json'
+
+
+def save_channel_asset(channel_id, filename, content, kind):
+    """Save a logo or CTA asset in the channel's local asset library."""
+    suffix = Path(filename or '').suffix.lower()
+    allowed = {
+        'logo': {'.png', '.jpg', '.jpeg', '.webp'},
+        'image': {'.png', '.jpg', '.jpeg', '.webp'},
+        'video': {'.mp4', '.mov', '.webm'},
+        'cta': {'.png', '.jpg', '.jpeg', '.webp', '.mp4', '.mov', '.webm'},
+    }
+    if kind not in allowed or suffix not in allowed[kind]:
+        raise ValueError('Formato de arquivo não suportado para este ativo.')
+    folder = ROOT / CHANNEL_ASSETS_DIR / str(channel_id)
+    target = folder / f"{'logo' if kind == 'logo' else 'cta'}{suffix}"
+    folder.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(content)
+    return str(target)
 
 
 def _read_json(path, fallback):

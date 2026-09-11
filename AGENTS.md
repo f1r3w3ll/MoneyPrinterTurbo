@@ -346,6 +346,22 @@ O gerador original foi preservado.
   manual, parser, validação da API, avisos de produção e bloqueio de
   publicação, para manter o fluxo consistente.
 
+## CTA visual e identidade do canal — 11/09/2026
+
+- Cada canal pode cadastrar uma logo (`PNG`, `JPG`, `WEBP`) e escolher o CTA
+  padrão: texto, imagem em tela cheia ou vídeo. Os ativos ficam em
+  `storage/studio/channel_assets/<canal>/` e não entram no Git.
+- O CTA pode ser ativado no roteiro e ter texto e formato visual ajustados por
+  vídeo. O roteiro conserva a escolha para a produção, junto com a logo e o
+  ativo visual selecionados.
+- Antes de enfileirar o trabalho, o Estúdio copia logo e mídia de CTA para a
+  pasta da produção. Assim, edições posteriores no perfil do canal não mudam
+  um vídeo já iniciado ou que será retomado.
+- Depois da composição, o pipeline acrescenta uma endcard: texto por cinco
+  segundos, com logo centralizada e chamada abaixo; imagem por cinco segundos;
+  ou vídeo de CTA de até quinze segundos, preservando seu áudio. Sem CTA
+  configurado, o vídeo continua com o comportamento anterior.
+
 ## Recuperação de lote incompleto de roteiro — 10/09/2026
 
 - Roteiros com mais de 12 cenas continuam gerados em lotes e não aceitam um

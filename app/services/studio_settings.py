@@ -1,6 +1,7 @@
 """Studio configuration. Password fields are write-only; blank means preserve."""
 import copy
 import importlib.util
+from pathlib import Path
 import threading
 
 from app.config import config
@@ -114,4 +115,11 @@ def validate_settings(params):
         errors.append('Este provedor de voz ainda não está implementado.')
     if params.premium_tts_provider == 'elevenlabs' and not params.voice_name.startswith('elevenlabs:'):
         errors.append('Selecione uma voz ElevenLabs para o provedor escolhido.')
+    if params.cta_mode not in ('text', 'image', 'video'):
+        errors.append('Selecione um formato de CTA válido.')
+    if params.cta_mode in ('image', 'video'):
+        asset = Path(params.cta_asset_path or '')
+        accepted = {'.png', '.jpg', '.jpeg', '.webp'} if params.cta_mode == 'image' else {'.mp4', '.mov', '.webm'}
+        if not asset.is_file() or asset.suffix.lower() not in accepted:
+            errors.append('Envie um arquivo compatível com o CTA selecionado.')
     return errors

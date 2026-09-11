@@ -428,6 +428,10 @@ class LongFormVideoParams(VideoParams):
     thumbnail_style: Optional[str] = "hybrid"  # hybrid, ai-only, template
     thumbnail_text: Optional[str] = ""
     animated_intro: bool = False
+    cta_mode: str = "text"  # text, image, video
+    cta_text: str = ""
+    cta_asset_path: str = ""
+    channel_logo_path: str = ""
 
     # Processing optimization
     enable_checkpointing: bool = True
