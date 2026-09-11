@@ -398,6 +398,7 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(generated.call_args.kwargs['quality'], 'medium')
 
     def test_claude_client_omits_empty_base_url(self):
+        from app.services import script_generator
         from app.services.script_generator import ScriptGeneratorService
         created = []
 
@@ -411,9 +412,31 @@ class StudioTests(unittest.TestCase):
 
         module = ModuleType('anthropic')
         module.Anthropic = FakeAnthropic
-        with patch.dict(sys.modules, {'anthropic': module}):
+        with patch.dict(sys.modules, {'anthropic': module}), \
+             patch.object(script_generator, '_anthropic_http_client', return_value=None):
             ScriptGeneratorService()._generate_claude('teste', {'api_key': 'test', 'model': 'claude-sonnet-4-6'})
         self.assertEqual(created, [{'api_key': 'test'}])
+
+    def test_claude_client_uses_supplied_windows_certificate_client(self):
+        from app.services import script_generator
+        from app.services.script_generator import ScriptGeneratorService
+        created, certificate_client = [], object()
+
+        class FakeAnthropic:
+            def __init__(self, **kwargs):
+                created.append(kwargs)
+                self.messages = SimpleNamespace(create=lambda **ignored: SimpleNamespace(
+                    content=[SimpleNamespace(text='{}')],
+                    usage=SimpleNamespace(input_tokens=1, output_tokens=1),
+                ))
+
+        module = ModuleType('anthropic')
+        module.Anthropic = FakeAnthropic
+        with patch.dict(sys.modules, {'anthropic': module}), \
+             patch.object(script_generator, '_anthropic_http_client', return_value=certificate_client):
+            ScriptGeneratorService()._generate_claude('teste', {'api_key': 'test', 'model': 'claude-sonnet-4-6'})
+
+        self.assertEqual(created, [{'api_key': 'test', 'http_client': certificate_client}])
 
     def test_openai_script_generation_reserves_longform_output_capacity(self):
         from app.services.script_generator import ScriptGeneratorService

@@ -419,3 +419,14 @@ O gerador original foi preservado.
 - A chave atualmente configurada não possui a permissão `voices_read`, então
   o aplicativo não deve depender de consulta ao catálogo da ElevenLabs para
   pré-validar IDs de voz. A síntese pode continuar autorizada quando há saldo.
+
+## Claude e certificados no Windows — 11/09/2026
+
+- A indisponibilidade recorrente do Claude foi confirmada como
+  `CERTIFICATE_VERIFY_FAILED`: a rede/VPN apresenta um certificado
+  autoassinado que o repositório padrão do Python não reconhece. A chave, o
+  modelo `claude-sonnet-4-6` e o endpoint oficial estavam corretos.
+- O gerador de roteiro agora fornece ao SDK Anthropic um cliente HTTPX que
+  incorpora os certificados da store `ROOT` do Windows, mantendo a validação
+  TLS ativa. Uma consulta não geradora a `GET /v1/models` respondeu `200` e
+  retornou 11 modelos após a correção.

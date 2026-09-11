@@ -5,9 +5,12 @@ Supports: OpenAI, Claude (Anthropic), Gemini, DeepSeek, Kimi, Qwen
 """
 
 import json
+import os
 import re
+import ssl
 import time
 from typing import Dict, Optional, Tuple
+import httpx
 from loguru import logger
 
 from app.models.schema import (
@@ -18,6 +21,21 @@ from app.models.schema import (
 )
 from app.config import config
 from app.services.script_parser import ScriptParser
+
+
+def _anthropic_http_client():
+    """Use Windows trusted certificates when an inspected network inserts a CA."""
+    if os.name != 'nt':
+        return None
+    try:
+        context = ssl.create_default_context()
+        for certificate, encoding, _trust in ssl.enum_certificates('ROOT'):
+            if encoding == 'x509_asn':
+                context.load_verify_locations(cadata=ssl.DER_cert_to_PEM_cert(certificate))
+        return httpx.Client(verify=context, timeout=240)
+    except Exception as exc:
+        logger.warning(f'Não foi possível carregar certificados do Windows para Claude: {exc}')
+        return None
 
 
 class ScriptGeneratorService:
@@ -387,6 +405,9 @@ Output ONLY the JSON, no explanations or markdown formatting.
         client_options = {'api_key': api_key}
         if base_url:
             client_options['base_url'] = base_url
+        http_client = _anthropic_http_client()
+        if http_client is not None:
+            client_options['http_client'] = http_client
         client = anthropic.Anthropic(**client_options)
 
         message = client.messages.create(
