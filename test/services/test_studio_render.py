@@ -65,6 +65,21 @@ class StudioRenderTest(unittest.TestCase):
                 regular_motion = np.abs(clip.get_frame(1.05).astype(int) - clip.get_frame(1.80).astype(int)).mean()
                 self.assertGreater(intro_motion, regular_motion + 1.)
 
+    def test_fade_transition_dims_scene_end_before_the_next_scene(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image, audio = root / 'scene.png', root / 'scene.wav'
+            self._asymmetric_image(image)
+            self._write_silent_audio(audio)
+            params = LongFormVideoParams(video_subject='Transição', subtitle_enabled=False,
+                                         chunk_size_minutes=5, n_threads=1)
+            output = longform_media.compose([
+                dict(index=0, image=str(image), audio=str(audio), duration=1., cues=[], transition='fade'),
+            ], params, root, output_name='fade.mp4', resolution=(160, 90), fps=12)
+            with VideoFileClip(output) as clip:
+                middle_luminance = clip.get_frame(.50).mean()
+                ending_luminance = clip.get_frame(.98).mean()
+                self.assertLess(ending_luminance, middle_luminance * .75)
     def test_complete_production_has_video_thumbnail_script_and_subtitles(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

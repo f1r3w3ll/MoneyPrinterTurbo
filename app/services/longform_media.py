@@ -240,7 +240,9 @@ def _apply_transition(scene, entry):
     transition = (entry.get('transition') or 'none').lower()
     length = min(.35, max(.08, scene.duration * .2))
     if transition == 'fade':
-        return video_effects.fadein_transition(scene, length)
+        return video_effects.fadeout_transition(
+            video_effects.fadein_transition(scene, length), length
+        )
     if transition == 'slide':
         side = ('left', 'right', 'top', 'bottom')[int(entry['index']) % 4]
         return video_effects.slidein_transition(scene, length, side)
