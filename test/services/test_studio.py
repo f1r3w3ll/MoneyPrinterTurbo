@@ -257,6 +257,32 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(model, 'gpt-4o')
         self.assertEqual(tokens, 400)
 
+    def test_longform_script_retries_one_incomplete_batch_once(self):
+        from app.models.schema import ScriptGenerationRequest
+        from app.services.script_generator import ScriptGeneratorService
+
+        generator = ScriptGeneratorService()
+        generator.llm_configs = {'openai': {'api_key': 'test', 'enabled': True}}
+        full_batch = json.dumps({
+            'title': 'AI infrastructure', 'description': 'Description', 'total_duration_estimate': 300,
+            'scenes': [dict(index=index, narration='A complete scene narration with enough detail for testing.', image_prompt='Detailed documentary image') for index in range(12)],
+        })
+        incomplete_batch = json.dumps({
+            'title': 'AI infrastructure', 'description': 'Description', 'total_duration_estimate': 300,
+            'scenes': [dict(index=index, narration='A complete scene narration with enough detail for testing.', image_prompt='Detailed documentary image') for index in range(8)],
+        })
+        with patch.object(generator, '_generate_openai', side_effect=[
+            (full_batch, 'gpt-4o', 100), (full_batch, 'gpt-4o', 100),
+            (full_batch, 'gpt-4o', 100), (incomplete_batch, 'gpt-4o', 100),
+            (full_batch, 'gpt-4o', 100),
+        ]) as generate:
+            script, _, _, _ = generator.generate_script(
+                ScriptGenerationRequest(topic='AI infrastructure', duration_minutes=20, language='en-US')
+            )
+
+        self.assertEqual(generate.call_count, 5)
+        self.assertEqual(len(script.scenes), 48)
+
     def test_longform_duration_margin_accepts_fifteen_minutes_for_a_twenty_minute_target(self):
         from webui.studio import _duration_is_on_target
 

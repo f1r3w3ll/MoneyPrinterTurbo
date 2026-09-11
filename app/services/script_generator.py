@@ -117,8 +117,21 @@ class ScriptGeneratorService:
             )
             parsed = self._parse_script_json(content, batch_request)
             if len(parsed.scenes) < batch_size:
+                retry_request = batch_request.model_copy(update={
+                    'custom_instructions': (batch_request.custom_instructions or '') + (
+                        f'\nYour previous response returned too few scenes. Return exactly {batch_size} '
+                        'complete scenes for this batch; do not shorten or omit any scene.'
+                    ),
+                })
+                content, model, retry_tokens = self._generate_provider(
+                    request.llm_provider.value, self._build_prompt(retry_request), llm_config
+                )
+                parsed = self._parse_script_json(content, retry_request)
+                tokens = (tokens or 0) + (retry_tokens or 0)
+            if len(parsed.scenes) < batch_size:
                 raise ValueError(
-                    f'Batch {batch_index} returned {len(parsed.scenes)} scenes; expected {batch_size}.'
+                    f'Batch {batch_index} returned {len(parsed.scenes)} scenes after one retry; '
+                    f'expected {batch_size}.'
                 )
             for scene in parsed.scenes[:batch_size]:
                 scene.index = offset

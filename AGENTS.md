@@ -346,6 +346,14 @@ O gerador original foi preservado.
   manual, parser, validação da API, avisos de produção e bloqueio de
   publicação, para manter o fluxo consistente.
 
+## Recuperação de lote incompleto de roteiro — 10/09/2026
+
+- Roteiros com mais de 12 cenas continuam gerados em lotes e não aceitam um
+  lote parcial silenciosamente. Se um provider devolver menos cenas que as
+  solicitadas, como 8 em vez de 12, o Estúdio repete somente aquele lote uma
+  vez com a exigência explícita de quantidade. Uma segunda resposta incompleta
+  encerra a geração com erro; não há loop de tentativas.
+
 ## Movimento visual e CTA configurável — decisão aprovada em 10/09/2026
 
 - O Estúdio passará a oferecer, por vídeo, uma opção desativada por padrão para
