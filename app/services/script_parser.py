@@ -153,6 +153,7 @@ class ScriptParser:
                 "wipe": "slide", "swipe": "slide",
                 "dissolve": "fade", "crossfade": "fade", "cross-fade": "fade",
                 "fade in": "fade", "fade-out": "fade",
+                "fade_to_black": "fade", "fade-to-black": "fade",
             }
             scene.transition = transition_aliases.get(transition, transition)
 

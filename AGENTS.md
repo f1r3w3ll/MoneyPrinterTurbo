@@ -436,3 +436,9 @@ O gerador original foi preservado.
   `https://api.anthropic.com` como padrão, preservando um endpoint customizado
   apenas quando ele for salvo em Configurações. Uma chamada mínima de mensagens
   com `claude-sonnet-4-6` foi concluída após a correção.
+
+## Vocabulário de transições Claude — 11/09/2026
+
+- O parser normaliza também `fade_to_black` e `fade-to-black`, retornados por
+  Claude em roteiros longos, para a transição suportada `fade` antes da
+  validação das cenas.
