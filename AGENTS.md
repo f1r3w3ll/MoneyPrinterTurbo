@@ -442,3 +442,12 @@ O gerador original foi preservado.
 - O parser normaliza também `fade_to_black` e `fade-to-black`, retornados por
   Claude em roteiros longos, para a transição suportada `fade` antes da
   validação das cenas.
+
+## Persistência concorrente do Estúdio — 11/09/2026
+
+- Duas instâncias Streamlit foram encontradas escutando a porta 8501 e
+  atualizando a mesma produção. O nome fixo `production.tmp` permitia colisão
+  entre elas e causava `WinError 5` ao substituir `production.json`.
+- O gravador JSON agora usa um arquivo temporário exclusivo no diretório de
+  destino e repete brevemente a substituição em bloqueios transitórios do
+  Windows. A aplicação deve operar com uma única instância Streamlit.
