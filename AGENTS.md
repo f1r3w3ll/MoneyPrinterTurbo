@@ -325,6 +325,9 @@ O gerador original foi preservado.
   suporta arquivos de até 5 GB segundo a documentação atual da API.
 - A aba Publicação exibe uma barra de progresso durante o envio: bytes enviados
   e percentual por parte, depois o processamento da mídia e a criação do post.
+- O upload em partes repete somente a parte que falhar por erro transitório de
+  rede ou gateway (`408`, `429`, `5xx`, incluindo `504`), com até quatro
+  tentativas e espera progressiva. As partes já concluídas não são reenviadas.
 
 ## Idioma por vídeo — 10/09/2026
 

@@ -9,6 +9,8 @@ BASE_URL = 'https://api.woopsocial.com/v1'
 # A session upload bypasses the API origin for the file bytes. It is more
 # resilient for the long-form MP4s produced by the Studio.
 CHUNKED_UPLOAD_THRESHOLD_BYTES = 25 * 1024 * 1024
+PART_UPLOAD_ATTEMPTS = 4
+TRANSIENT_UPLOAD_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
 
 
 def _headers():
@@ -79,6 +81,27 @@ def _report_upload_progress(progress, sent, total, phase):
         progress(sent, total, phase)
 
 
+def _upload_part(url, chunk, part_number, sent, total_size, progress=None):
+    """Retry only the current presigned upload part on transient gateway failures."""
+    last_response = None
+    for attempt in range(PART_UPLOAD_ATTEMPTS):
+        try:
+            response = requests.put(url, data=chunk, timeout=600)
+        except requests.RequestException:
+            response = None
+        if response is not None and getattr(response, 'status_code', None) not in TRANSIENT_UPLOAD_STATUS_CODES:
+            _ensure_success(response, f'a parte {part_number} do upload')
+            return
+        last_response = response
+        if attempt < PART_UPLOAD_ATTEMPTS - 1:
+            _report_upload_progress(progress, sent, total_size,
+                                    f'Repetindo a parte {part_number} do upload ({attempt + 2}/{PART_UPLOAD_ATTEMPTS})')
+            time.sleep(2 ** attempt)
+    if last_response is not None:
+        _ensure_success(last_response, f'a parte {part_number} do upload')
+    raise ValueError(f'Não foi possível enviar a parte {part_number} do upload por falha de rede.')
+
+
 def _upload_video_in_session(path, project_id, progress=None):
     """Upload MP4 bytes through presigned URLs, then wait until media is ready."""
     headers = _headers()
@@ -104,8 +127,7 @@ def _upload_video_in_session(path, project_id, progress=None):
             chunk = file.read(part_size)
             if not url or not chunk or (index < len(ordered_parts) - 1 and len(chunk) != part_size):
                 raise ValueError('A WoopSocial retornou partes de upload inválidas.')
-            uploaded = requests.put(url, data=chunk, timeout=600)
-            _ensure_success(uploaded, f'a parte {index + 1} do upload')
+            _upload_part(url, chunk, index + 1, sent, total_size, progress)
             sent += len(chunk)
             _report_upload_progress(progress, sent, total_size, 'Enviando vídeo')
         if file.read(1):

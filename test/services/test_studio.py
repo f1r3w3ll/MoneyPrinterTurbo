@@ -3,6 +3,7 @@ import base64
 import sys
 import tempfile
 import unittest
+import requests
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import patch, Mock
@@ -585,6 +586,33 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(post.call_args_list[1].args[0], f'{woopsocial.BASE_URL}/media/upload-sessions/session-1/complete')
             self.assertEqual(post.call_args_list[2].args[0], f'{woopsocial.BASE_URL}/posts/validate')
             self.assertEqual(progress, [(0, 5, 'Preparando upload'), (5, 5, 'Enviando vídeo'), (5, 5, 'Processando vídeo'), (5, 5, 'Criando publicação')])
+
+    def test_woopsocial_retries_only_the_failed_transient_upload_part(self):
+        from app.services import woopsocial
+        with tempfile.TemporaryDirectory() as tmp:
+            video = Path(tmp) / 'video.mp4'
+            video.write_bytes(b'video')
+            session = Mock(); session.json.return_value = {
+                'uploadSessionId': 'session-1', 'partSizeInBytes': 10, 'partCount': 1,
+                'parts': [{'partNumber': 1, 'uploadUrl': 'https://upload.example/part-1'}],
+            }
+            failed = Mock(); failed.status_code = 504; failed.text = 'Gateway Time-out'
+            failed.raise_for_status.side_effect = requests.HTTPError('504 Gateway Time-out')
+            uploaded = Mock()
+            completed = Mock(); completed.json.return_value = {'status': 'UPLOADED'}
+            ready = Mock(); ready.json.return_value = {'status': 'READY', 'mediaId': 'media-1'}
+            validation = Mock(); validation.json.return_value = {'isValid': True, 'errors': []}
+            posted = Mock(); posted.json.return_value = {'id': 'post-1'}
+            with patch('app.services.woopsocial.requests.post', side_effect=[session, completed, validation, posted]), \
+                 patch('app.services.woopsocial.requests.put', side_effect=[failed, uploaded]) as put, \
+                 patch('app.services.woopsocial.requests.get', return_value=ready), \
+                 patch('app.services.woopsocial._headers', return_value={'Authorization': 'Bearer test'}), \
+                 patch('app.services.woopsocial.time.sleep') as sleep, \
+                 patch.object(woopsocial, 'CHUNKED_UPLOAD_THRESHOLD_BYTES', 1):
+                result = woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'private')
+            self.assertEqual(result, {'id': 'post-1'})
+            self.assertEqual(put.call_count, 2)
+            sleep.assert_called_once()
 
     def test_woopsocial_stops_when_upload_response_has_no_media_id(self):
         from app.services import woopsocial
