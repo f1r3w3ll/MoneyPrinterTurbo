@@ -16,6 +16,7 @@ PROFILE_DEFAULTS = {
     'name': '', 'niche': '', 'subniche': '', 'audience': '', 'promise': '',
     'language': 'pt-BR', 'tone': 'documentary', 'pillars': '', 'visual_style': '', 'source_policy': '',
     'restricted_topics': '',
+    'default_cta': '',
 }
 
 FIRST_CHANNEL_ID = 'fio-da-ciencia'
@@ -31,6 +32,7 @@ FIRST_CHANNEL_PROFILE = {
     'visual_style': 'Cinematic documentary, archives, clean diagrams and visual comparisons that reveal scale and cause',
     'source_policy': 'Prioritize primary sources, scientific institutions, technical documentation and reliable reviews; state uncertainty and dates.',
     'restricted_topics': 'Sensationalism, evidence-free future claims, pseudoscience, alarmism, and medical, financial or safety advice without qualified sources.',
+    'default_cta': '',
 }
 
 BRIEF_DEFAULTS = {

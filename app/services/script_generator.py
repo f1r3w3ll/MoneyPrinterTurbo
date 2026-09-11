@@ -273,6 +273,14 @@ Keep the chosen packaging promise. Do not use a title that promises something th
 script does not answer. Treat source notes as verification leads, never as proof
 of a claim that you cannot support.
 """
+            cta = request.editorial_context.get("cta") or {}
+            cta_text = str(cta.get("text") or "").strip() if cta.get("enabled") else ""
+            if cta_text:
+                prompt += f"""
+Use this exact call-to-action only in the scene whose narrative_role is CTA:
+{cta_text}
+Do not repeat it in any other scene.
+"""
 
         prompt += f"""
 **Output Format (JSON only, no markdown):**
@@ -571,6 +579,8 @@ Output ONLY the JSON, no explanations or markdown formatting.
                 **request.editorial_context,
                 **generated_editorial,
             }
+            if "cta" in request.editorial_context:
+                metadata["editorial"]["cta"] = request.editorial_context["cta"]
 
         script = StructuredScript(
             title=data.get("title", f"Video sobre {request.topic}"),
@@ -581,12 +591,23 @@ Output ONLY the JSON, no explanations or markdown formatting.
             scenes=scenes,
             metadata=metadata,
         )
-        cta_replacements = {
-            'en-US': [(r'\binscreva-?se\b', 'Subscribe')],
-            'es-ES': [(r'\binscreva-?se\b', 'Suscríbete')],
-        }
-        for scene in script.scenes:
-            if scene.narrative_role and scene.narrative_role.lower() == 'cta':
+        cta = (request.editorial_context or {}).get("cta") or {}
+        selected_cta = str(cta.get("text") or "").strip() if cta.get("enabled") else ""
+        cta_scenes = [
+            scene for scene in script.scenes
+            if scene.narrative_role and scene.narrative_role.lower() == 'cta'
+        ]
+        if selected_cta:
+            if cta_scenes:
+                cta_scenes[-1].narration = selected_cta
+            elif script.scenes:
+                script.scenes[-1].narration = f"{script.scenes[-1].narration.rstrip()} {selected_cta}".strip()
+        else:
+            cta_replacements = {
+                'en-US': [(r'\binscreva-?se\b', 'Subscribe')],
+                'es-ES': [(r'\binscreva-?se\b', 'Suscríbete')],
+            }
+            for scene in cta_scenes:
                 for pattern, replacement in cta_replacements.get(request.language, []):
                     scene.narration = re.sub(pattern, replacement, scene.narration, flags=re.IGNORECASE)
 

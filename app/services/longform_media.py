@@ -168,24 +168,85 @@ def _caption(text, size, params):
     return np.asarray(image)
 
 
-def frame_renderer(base, entry, params):
-    """Cache one composited caption per scene, rather than all full-HD captions."""
-    previous, rendered = None, base
-    size = (base.shape[1], base.shape[0])
+def motion_renderer(picture, size, entry, params):
+    """Return deterministic camera motion for one still image.
+
+    The canvas is deliberately larger than the delivered frame, allowing a
+    pan-and-zoom crop without changing the scene's audio-driven duration.
+    """
+    width, height = size
+    intro = bool(getattr(params, 'animated_intro', False)) and int(entry['index']) < 3
+    transition = (entry.get('transition') or 'none').lower()
+    max_zoom = 1.24 if intro else 1.10
+    if transition == 'zoom':
+        max_zoom += .08
+    canvas_size = (math.ceil(width * max_zoom), math.ceil(height * max_zoom))
+    canvas = ImageOps.fit(picture.convert('RGB'), canvas_size, method=Image.Resampling.LANCZOS)
+    direction = int(entry['index']) % 4
+    duration = max(.001, float(entry['duration']))
+
     def frame(t):
-        nonlocal previous, rendered
+        fraction = min(1., max(0., float(t) / duration))
+        zoom = 1. + (max_zoom - 1.) * fraction
+        crop_width = max(1, round(width / zoom))
+        crop_height = max(1, round(height / zoom))
+        span_x, span_y = canvas.width - crop_width, canvas.height - crop_height
+        if direction == 0:
+            x, y = round(span_x * fraction), span_y // 2
+        elif direction == 1:
+            x, y = round(span_x * (1. - fraction)), span_y // 2
+        elif direction == 2:
+            x, y = span_x // 2, round(span_y * fraction)
+        else:
+            x, y = span_x // 2, round(span_y * (1. - fraction))
+        cropped = canvas.crop((x, y, x + crop_width, y + crop_height))
+        return np.asarray(cropped.resize(size, Image.Resampling.LANCZOS))
+
+    return frame
+
+
+def frame_renderer(frame_supplier, entry, params):
+    """Render moving frames and cache a captioned result for one frame bucket."""
+    previous, rendered = None, None
+    size = None
+    captions = {}
+    if isinstance(frame_supplier, np.ndarray):
+        base = frame_supplier
+        frame_supplier = lambda _time: base
+    def frame(t):
+        nonlocal previous, rendered, size
         text = next((cue['text'] for cue in entry['cues'] if cue['start'] <= t < cue['end']), '') if params.subtitle_enabled else ''
-        if text == previous:
+        bucket = int(max(0., float(t)) * 24)
+        key = (text, bucket)
+        if key == previous:
             return rendered
-        previous = text
+        previous = key
+        base = frame_supplier(bucket / 24.)
+        size = (base.shape[1], base.shape[0])
         if not text:
             rendered = base
         else:
+            if text not in captions:
+                captions[text] = _caption(text, size, params)
             with Image.fromarray(base).convert('RGBA') as background:
-                with Image.fromarray(_caption(text, size, params)) as caption:
+                with Image.fromarray(captions[text]) as caption:
                     rendered = np.asarray(Image.alpha_composite(background, caption).convert('RGB'))
         return rendered
     return frame
+
+
+def _apply_transition(scene, entry):
+    from app.services.utils import video_effects
+    transition = (entry.get('transition') or 'none').lower()
+    length = min(.35, max(.08, scene.duration * .2))
+    if transition == 'fade':
+        return video_effects.fadein_transition(scene, length)
+    if transition == 'slide':
+        side = ('left', 'right', 'top', 'bottom')[int(entry['index']) % 4]
+        return video_effects.slidein_transition(scene, length, side)
+    if transition == 'zoom':
+        return video_effects.fadein_transition(scene, length)
+    return scene
 
 
 def compose(entries, params, folder, progress=None, output_name='final.mp4', resolution=None, fps=24):
@@ -212,10 +273,11 @@ def compose(entries, params, folder, progress=None, output_name='final.mp4', res
         try:
             for entry in batch:
                 with Image.open(entry['image']) as picture:
-                    frame = np.asarray(ImageOps.fit(picture.convert('RGB'), size))
+                    renderer = motion_renderer(picture, size, entry, params)
                 audio = AudioFileClip(entry['audio'])
                 resources.append(audio)
-                scene = VideoClip(frame_renderer(frame, entry, params), duration=entry['duration']).with_audio(audio)
+                scene = VideoClip(frame_renderer(renderer, entry, params), duration=entry['duration']).with_audio(audio)
+                scene = _apply_transition(scene, entry).with_duration(entry['duration']).with_audio(audio)
                 clips.append(scene); resources.append(scene)
             joined = concatenate_videoclips(clips, method='chain')
             resources.append(joined)

@@ -349,16 +349,27 @@ O gerador original foi preservado.
 ## Movimento visual e CTA configurável — decisão aprovada em 10/09/2026
 
 - O Estúdio passará a oferecer, por vídeo, uma opção desativada por padrão para
-  abertura animada. Quando ativada, as primeiras cenas do gancho usarão clipes
-  curtos gerados por IA; o restante do vídeo continuará usando imagens estáticas
-  com movimento cinematográfico local.
+  abertura animada. Nesta etapa ela aplicará movimento cinematográfico mais
+  intenso às primeiras cenas do gancho, sem exigir uma nova API de vídeo; o
+  restante do vídeo continuará usando imagens estáticas com movimento suave.
 - O movimento local deve aplicar aproximação, afastamento ou deslocamento suave
   e transições reais às imagens durante a composição. Ele não deve exigir uma
   API adicional e será o comportamento visual padrão fora da abertura animada.
 - A abertura animada precisa permanecer limitada a poucas cenas curtas para
   conter custo, tempo de processamento e inconsistências visuais. A interface
-  deve comunicar a etapa e seu progresso por cena.
+  deve comunicar a escolha e seu efeito. Uma futura integração de clipes de IA
+  poderá aproveitar esses mesmos metadados, mas não fará parte desta etapa sem
+  um provider de vídeo configurado pelo usuário.
 - Configurações ganhará um texto de CTA padrão por canal. Ao gerar um roteiro,
   esse CTA será sugerido no idioma/configuração escolhidos e continuará
   editável no roteiro antes de iniciar a produção. O usuário poderá optar por
   usá-lo em cada vídeo, em vez de obrigar sua inserção.
+- Implementado: a composição cria pan/zoom determinístico para todas as imagens
+  e aplica `fade`, `slide` e `zoom` declarados no roteiro. Ao marcar
+  **Abertura animada** na produção, as três primeiras cenas recebem movimento
+  mais intenso, sem nova chamada de API. A duração do áudio continua sendo a
+  duração efetiva da cena e as legendas ficam sobre os frames em movimento.
+- Implementado: a identidade editorial tem campo **CTA padrão do canal**. O
+  campo começa vazio; quando escolhido para um roteiro, a frase pode ser
+  alterada e é inserida somente na cena CTA, preservando a edição posterior do
+  roteiro. O valor escolhido acompanha os metadados da produção.

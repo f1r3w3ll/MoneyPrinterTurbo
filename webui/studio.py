@@ -85,6 +85,17 @@ def _duration_is_on_target(estimated_seconds, target_seconds):
     return target_seconds * 0.75 <= estimated_seconds <= target_seconds * 1.2
 
 
+def build_production_params(script, *, animated_intro=False, **options):
+    """Build production settings independently from the Streamlit controls."""
+    return LongFormVideoParams(
+        video_subject=script.title,
+        structured_script=script,
+        use_structured_script=True,
+        animated_intro=animated_intro,
+        **options,
+    )
+
+
 def _channel_profile_editor():
     channels = editorial.list_channels()
     active_id = editorial.active_channel_id()
@@ -127,6 +138,12 @@ def _channel_profile_editor():
                 channel_subniche = st.text_input('Recorte', value=profile['subniche'], placeholder='Ex.: decisões que moldaram a internet')
             audience = st.text_input('Público principal', value=profile['audience'])
             promise = st.text_area('Promessa do canal', value=profile['promise'], placeholder='O que a pessoa aprende ou sente ao assistir?')
+            default_cta = st.text_area(
+                'CTA padrão do canal',
+                value=profile.get('default_cta', ''),
+                placeholder='Ex.: Subscribe for the next episode.',
+                help='Será sugerido ao gerar roteiros e poderá ser alterado em cada vídeo.',
+            )
             language_options = list(VIDEO_LANGUAGE_LABELS)
             channel_language = st.selectbox('Idioma padrão do canal', language_options,
                 index=language_options.index(profile['language']) if profile['language'] in language_options else 0,
@@ -137,7 +154,7 @@ def _channel_profile_editor():
             source_policy = st.text_area('Política de fontes', value=profile['source_policy'], placeholder='Ex.: priorizar fontes primárias e indicar incertezas')
             restricted = st.text_input('Assuntos ou abordagens a evitar', value=profile['restricted_topics'])
             if st.form_submit_button('Salvar identidade editorial'):
-                editorial.save_channel_profile({'name': name, 'niche': channel_niche, 'subniche': channel_subniche, 'audience': audience, 'promise': promise, 'language': channel_language, 'tone': tone, 'pillars': pillars, 'visual_style': visual_style, 'source_policy': source_policy, 'restricted_topics': restricted})
+                editorial.save_channel_profile({'name': name, 'niche': channel_niche, 'subniche': channel_subniche, 'audience': audience, 'promise': promise, 'default_cta': default_cta, 'language': channel_language, 'tone': tone, 'pillars': pillars, 'visual_style': visual_style, 'source_policy': source_policy, 'restricted_topics': restricted})
                 st.success('Identidade editorial salva.')
                 profile = editorial.get_channel_profile()
     return profile
@@ -277,6 +294,18 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
             style = st.selectbox('Estilo do roteiro', ['educational', 'documentary', 'entertaining'], format_func=lambda x: {'educational': 'Educacional', 'documentary': 'Documentário', 'entertaining': 'Entretenimento'}[x])
             audience = st.text_input('Público-alvo')
             instructions = st.text_area('Orientações adicionais')
+            default_cta = (profile or {}).get('default_cta', '')
+            use_cta = st.checkbox(
+                'Usar CTA padrão do canal neste roteiro',
+                value=bool(default_cta),
+                help='Inclui o CTA escolhido somente na cena final de chamada à ação.',
+            )
+            cta_text = st.text_input(
+                'CTA deste vídeo',
+                value=default_cta,
+                disabled=not use_cta,
+                help='Você pode adaptar o CTA para este vídeo sem alterar o perfil do canal.',
+            )
             st.caption('A geração usa a API configurada e pode gerar custos.')
             if st.form_submit_button('Gerar roteiro'):
                 if not topic.strip():
@@ -285,9 +314,15 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
                     from app.services.script_generator import ScriptGeneratorService
                     with st.spinner('Escrevendo roteiro…'):
                         try:
-                            editorial_context = None
+                            editorial_context = {
+                                'cta': {'enabled': use_cta, 'text': cta_text.strip()},
+                            }
                             if brief and selected_package:
-                                editorial_context = {'channel': {**(profile or {}), 'language': language}, 'brief': dict(brief, topic=topic.strip()), 'selected_package': selected_package}
+                                editorial_context.update({
+                                    'channel': {**(profile or {}), 'language': language},
+                                    'brief': dict(brief, topic=topic.strip()),
+                                    'selected_package': selected_package,
+                                })
                             result = ScriptGeneratorService().generate_script(ScriptGenerationRequest(topic=topic, duration_minutes=minutes, llm_provider=provider, custom_instructions=instructions, language=language, style=style, target_audience=audience, editorial_context=editorial_context))
                             script = result[0] if isinstance(result, tuple) else result
                             data = script.model_dump()
@@ -406,6 +441,13 @@ def _produce(backend, settings, script):
     aspect_options = {'Retrato · 9:16': '9:16', 'Paisagem · 16:9': '16:9'}
     aspect_label = st.selectbox('Proporção do vídeo', list(aspect_options), key='output_aspect')
     aspect = aspect_options[aspect_label]
+    animated_intro = st.checkbox(
+        'Abertura animada',
+        value=False,
+        help='Aplica movimento mais intenso às primeiras cenas do gancho, sem usar uma API adicional.',
+    )
+    if animated_intro:
+        st.caption('Na composição, as primeiras cenas receberão movimento cinematográfico mais intenso.')
     image_quality = st.selectbox('Qualidade DALL-E', ['standard', 'hd'], key='output_quality', disabled=image_provider != 'dalle')
     image_size = st.selectbox('Tamanho DALL-E', ['1024x1024', '1792x1024', '1024x1792'], key='output_size', disabled=image_provider != 'dalle')
     st.session_state.setdefault('output_thumbnail_text', script['title'] if script else '')
@@ -449,7 +491,27 @@ def _produce(backend, settings, script):
                 f'{target_seconds / 60:.0f} minutos. A produção não foi iniciada para evitar custos com um vídeo na duração errada.'
             )
             return
-        params = LongFormVideoParams(video_subject=parsed.title, structured_script=parsed, use_structured_script=True, video_aspect=aspect, image_provider=image_provider, image_quality=image_quality, image_size=image_size, voice_name=voice, premium_tts_provider='elevenlabs' if voice.startswith('elevenlabs:') else None, font_name=font, font_size=font_size, subtitle_position=subtitle_position, text_fore_color=text_fore_color, stroke_color=stroke_color, stroke_width=stroke_width, text_background_color=text_background_color, bgm_type='', subtitle_enabled=subtitles, thumbnail_text=thumbnail_text, thumbnail_style=thumbnail_style)
+        params = build_production_params(
+            parsed,
+            animated_intro=animated_intro,
+            video_aspect=aspect,
+            image_provider=image_provider,
+            image_quality=image_quality,
+            image_size=image_size,
+            voice_name=voice,
+            premium_tts_provider='elevenlabs' if voice.startswith('elevenlabs:') else None,
+            font_name=font,
+            font_size=font_size,
+            subtitle_position=subtitle_position,
+            text_fore_color=text_fore_color,
+            stroke_color=stroke_color,
+            stroke_width=stroke_width,
+            text_background_color=text_background_color,
+            bgm_type='',
+            subtitle_enabled=subtitles,
+            thumbnail_text=thumbnail_text,
+            thumbnail_style=thumbnail_style,
+        )
         errors = backend.validate_settings(params)
         if errors:
             for error in errors:

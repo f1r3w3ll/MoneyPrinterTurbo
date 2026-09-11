@@ -11,7 +11,7 @@ roteiro.
 
 A interface de criação terá uma opção por vídeo, desativada por padrão, para
 usar uma abertura animada. Quando marcada, as primeiras cenas do gancho serão
-marcadas para geração de clipes curtos por IA. Fora dessa abertura, todas as
+marcadas para movimento cinematográfico intensificado. Fora dessa abertura, todas as
 cenas continuam originadas de imagens, mas a composição aplica movimento de
 câmera local e transições visíveis.
 
@@ -39,9 +39,9 @@ desmarcar seu uso em qualquer vídeo ou editar a narração depois da geração.
   acompanhar e salvar clipes. O primeiro provider será configurável e a
   indisponibilidade dele interromperá somente a abertura animada com erro
   compreensível, sem iniciar a renderização parcial.
-- O CTA padrão pertence ao perfil editorial do canal, acompanha seu idioma e
-  deve ser preenchido para o canal inicial em inglês com uma formulação
-  apropriada. Um perfil novo inicia vazio para evitar inserir texto inesperado.
+- O CTA padrão pertence ao perfil editorial do canal e acompanha sua identidade.
+  Perfis existentes e novos iniciam vazios para que o usuário determine a
+  formulação que deseja usar.
 
 ## Fluxo de dados
 

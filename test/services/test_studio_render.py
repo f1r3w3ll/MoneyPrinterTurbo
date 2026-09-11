@@ -5,7 +5,8 @@ import wave
 from pathlib import Path
 from unittest.mock import patch
 
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageDraw
 from moviepy import VideoFileClip
 from app.models.schema import LongFormVideoParams
 from app.services import studio, longform_pipeline, longform_media
@@ -14,6 +15,56 @@ from test.services.test_longform_pipeline import example_script
 
 
 class StudioRenderTest(unittest.TestCase):
+    @staticmethod
+    def _write_silent_audio(target, seconds=1.):
+        with wave.open(str(target), 'wb') as file:
+            sample_rate = 16000
+            file.setnchannels(1); file.setsampwidth(2); file.setframerate(sample_rate)
+            file.writeframes(b'\x00\x00' * round(sample_rate * seconds))
+
+    @staticmethod
+    def _asymmetric_image(target):
+        image = Image.new('RGB', (160, 90), '#12243a')
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((0, 0, 42, 89), fill='#f4c542')
+        draw.ellipse((106, 12, 151, 62), fill='#e84a5f')
+        image.save(target)
+
+    def test_animated_image_changes_frame_without_changing_scene_duration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image, audio = root / 'scene.png', root / 'scene.wav'
+            self._asymmetric_image(image)
+            self._write_silent_audio(audio)
+            params = LongFormVideoParams(video_subject='Movimento', subtitle_enabled=False,
+                                         chunk_size_minutes=5, n_threads=1)
+            output = longform_media.compose([
+                dict(index=0, image=str(image), audio=str(audio), duration=1., cues=[], transition='none'),
+            ], params, root, output_name='motion.mp4', resolution=(160, 90), fps=12)
+            with VideoFileClip(output) as clip:
+                self.assertAlmostEqual(clip.duration, 1., delta=.15)
+                self.assertIsNotNone(clip.audio)
+                first, last = clip.get_frame(.05), clip.get_frame(.80)
+                self.assertGreater(np.abs(first.astype(int) - last.astype(int)).mean(), 2.)
+
+    def test_intro_uses_stronger_motion_than_regular_scene(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image, first_audio, second_audio = root / 'scene.png', root / 'first.wav', root / 'second.wav'
+            self._asymmetric_image(image)
+            self._write_silent_audio(first_audio)
+            self._write_silent_audio(second_audio)
+            params = LongFormVideoParams(video_subject='Abertura', subtitle_enabled=False,
+                                         animated_intro=True, chunk_size_minutes=5, n_threads=1)
+            output = longform_media.compose([
+                dict(index=0, image=str(image), audio=str(first_audio), duration=1., cues=[], transition='none'),
+                dict(index=3, image=str(image), audio=str(second_audio), duration=1., cues=[], transition='none'),
+            ], params, root, output_name='intro.mp4', resolution=(160, 90), fps=12)
+            with VideoFileClip(output) as clip:
+                intro_motion = np.abs(clip.get_frame(.05).astype(int) - clip.get_frame(.80).astype(int)).mean()
+                regular_motion = np.abs(clip.get_frame(1.05).astype(int) - clip.get_frame(1.80).astype(int)).mean()
+                self.assertGreater(intro_motion, regular_motion + 1.)
+
     def test_complete_production_has_video_thumbnail_script_and_subtitles(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

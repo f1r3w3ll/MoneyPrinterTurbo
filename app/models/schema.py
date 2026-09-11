@@ -427,6 +427,7 @@ class LongFormVideoParams(VideoParams):
     # Thumbnail
     thumbnail_style: Optional[str] = "hybrid"  # hybrid, ai-only, template
     thumbnail_text: Optional[str] = ""
+    animated_intro: bool = False
 
     # Processing optimization
     enable_checkpointing: bool = True

@@ -11,6 +11,41 @@ from test.services.test_longform_pipeline import example_script
 
 
 class StudioTests(unittest.TestCase):
+    def test_channel_cta_is_persisted_with_each_profile(self):
+        from app.services import editorial
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
+            saved = editorial.save_channel_profile({
+                'name': 'Canal Atlas',
+                'niche': 'Ciência',
+                'default_cta': 'Inscreva-se para o próximo episódio.',
+            })
+
+            self.assertEqual(saved['default_cta'], 'Inscreva-se para o próximo episódio.')
+            self.assertEqual(
+                editorial.get_channel_profile()['default_cta'],
+                'Inscreva-se para o próximo episódio.',
+            )
+
+    def test_longform_params_keep_animated_intro_choice(self):
+        params = LongFormVideoParams(video_subject='Teste', animated_intro=True)
+
+        self.assertTrue(params.animated_intro)
+
+    def test_production_submission_serializes_animated_intro(self):
+        from app.services import studio
+        from webui.studio import build_production_params
+
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(studio, 'ROOT', Path(tmp)), \
+             patch.object(studio, 'validate_settings', return_value=[]), \
+             patch.object(studio, '_manager'):
+            identifier = studio.submit(build_production_params(example_script(), animated_intro=True))
+            try:
+                self.assertTrue(studio.get_production(identifier)['params']['animated_intro'])
+            finally:
+                studio._release(identifier)
+
     def test_structured_script_accepts_five_minute_target(self):
         from app.services.script_parser import ScriptParser
 
@@ -35,6 +70,7 @@ class StudioTests(unittest.TestCase):
 
             self.assertEqual(first['name'], 'Fio da Ciência')
             self.assertEqual(first['language'], 'en-US')
+            self.assertEqual(first['default_cta'], '')
             self.assertEqual(editorial.get_channel_profile()['niche'], 'História e cultura')
             self.assertEqual(editorial.get_channel_profile('fio-da-ciencia')['niche'], 'Science and technology explained')
             self.assertEqual(len(editorial.list_channels()), 2)
@@ -164,6 +200,29 @@ class StudioTests(unittest.TestCase):
         self.assertIn('15,600', prompt)
         self.assertEqual(script.metadata['script_language'], 'en-US')
         self.assertEqual(script.metadata['target_duration_seconds'], 1200)
+
+    def test_editorial_cta_is_in_prompt_and_final_cta_scene(self):
+        from app.models.schema import ScriptGenerationRequest
+        from app.services.script_generator import ScriptGeneratorService
+
+        request = ScriptGenerationRequest(
+            topic='Data centers', language='en-US',
+            editorial_context={'cta': {'enabled': True, 'text': 'Subscribe for the next episode.'}},
+        )
+        generator = ScriptGeneratorService()
+        prompt = generator._build_prompt(request)
+        script = generator._parse_script_json(json.dumps({
+            'title': 'Data centers', 'description': '', 'total_duration_estimate': 900,
+            'scenes': [
+                dict(index=index, narration='Complete narration for this scene.',
+                     image_prompt='Detailed documentary image',
+                     narrative_role='CTA' if index == 4 else 'context')
+                for index in range(5)
+            ],
+        }), request)
+
+        self.assertIn('Subscribe for the next episode.', prompt)
+        self.assertEqual(script.scenes[4].narration, 'Subscribe for the next episode.')
 
     def test_english_script_normalizes_a_portuguese_subscribe_cta(self):
         from app.models.schema import ScriptGenerationRequest
