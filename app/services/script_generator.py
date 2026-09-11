@@ -400,11 +400,12 @@ Output ONLY the JSON, no explanations or markdown formatting.
 
         api_key = config.get("api_key")
         model = config.get("model", "claude-3-5-sonnet-20241022")
-        base_url = config.get("base_url")
+        base_url = config.get("base_url") or "https://api.anthropic.com"
 
-        client_options = {'api_key': api_key}
-        if base_url:
-            client_options['base_url'] = base_url
+        # Specify the official endpoint even when no custom endpoint was saved.
+        # Otherwise the SDK inherits ANTHROPIC_BASE_URL, which may point at a
+        # stopped local proxy left by another development tool.
+        client_options = {'api_key': api_key, 'base_url': base_url}
         http_client = _anthropic_http_client()
         if http_client is not None:
             client_options['http_client'] = http_client

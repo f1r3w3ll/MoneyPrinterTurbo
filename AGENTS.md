@@ -430,3 +430,9 @@ O gerador original foi preservado.
   incorpora os certificados da store `ROOT` do Windows, mantendo a validação
   TLS ativa. Uma consulta não geradora a `GET /v1/models` respondeu `200` e
   retornou 11 modelos após a correção.
+- O SDK também herdava `ANTHROPIC_BASE_URL=http://127.0.0.1:3456` quando o
+  campo de endpoint do Estúdio estava vazio. Esse proxy local não estava em
+  execução e produzia `WinError 10061`. O gerador agora define explicitamente
+  `https://api.anthropic.com` como padrão, preservando um endpoint customizado
+  apenas quando ele for salvo em Configurações. Uma chamada mínima de mensagens
+  com `claude-sonnet-4-6` foi concluída após a correção.

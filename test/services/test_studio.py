@@ -397,7 +397,7 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(Path(result).read_bytes(), b'image bytes' * 128)
             self.assertEqual(generated.call_args.kwargs['quality'], 'medium')
 
-    def test_claude_client_omits_empty_base_url(self):
+    def test_claude_client_uses_official_base_url_when_endpoint_is_empty(self):
         from app.services import script_generator
         from app.services.script_generator import ScriptGeneratorService
         created = []
@@ -415,7 +415,7 @@ class StudioTests(unittest.TestCase):
         with patch.dict(sys.modules, {'anthropic': module}), \
              patch.object(script_generator, '_anthropic_http_client', return_value=None):
             ScriptGeneratorService()._generate_claude('teste', {'api_key': 'test', 'model': 'claude-sonnet-4-6'})
-        self.assertEqual(created, [{'api_key': 'test'}])
+        self.assertEqual(created, [{'api_key': 'test', 'base_url': 'https://api.anthropic.com'}])
 
     def test_claude_client_uses_supplied_windows_certificate_client(self):
         from app.services import script_generator
@@ -436,7 +436,11 @@ class StudioTests(unittest.TestCase):
              patch.object(script_generator, '_anthropic_http_client', return_value=certificate_client):
             ScriptGeneratorService()._generate_claude('teste', {'api_key': 'test', 'model': 'claude-sonnet-4-6'})
 
-        self.assertEqual(created, [{'api_key': 'test', 'http_client': certificate_client}])
+        self.assertEqual(created, [{
+            'api_key': 'test',
+            'base_url': 'https://api.anthropic.com',
+            'http_client': certificate_client,
+        }])
 
     def test_openai_script_generation_reserves_longform_output_capacity(self):
         from app.services.script_generator import ScriptGeneratorService
