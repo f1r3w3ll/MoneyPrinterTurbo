@@ -47,7 +47,7 @@ class StudioUITest(unittest.TestCase):
         self.assertLess(description.index('SOURCES & NOTES'), description.index('Subscribe for the next episode.'))
         self.assertTrue(description.endswith('#Technology #Science'))
 
-    def test_publication_blocks_a_video_when_its_real_duration_misses_the_target(self):
+    def test_publication_allows_completed_video_regardless_of_duration(self):
         short_record = {
             'title': 'Vídeo curto',
             'artifacts': {'duration_seconds': 52.09},
@@ -58,8 +58,7 @@ class StudioUITest(unittest.TestCase):
             'artifacts': {'duration_seconds': 980.96},
             'params': {'structured_script': {'metadata': {'target_duration_seconds': 1200}}},
         }
-        self.assertIn('0.9 minutos', studio._publication_duration_error(short_record))
-        self.assertIn('20 minutos', studio._publication_duration_error(short_record))
+        self.assertIsNone(studio._publication_duration_error(short_record))
         self.assertIsNone(studio._publication_duration_error(valid_record))
 
     def test_publication_label_includes_duration_file_size_and_creation_date(self):

@@ -314,11 +314,10 @@ O gerador original foi preservado.
   `media.id`, mas agora
   interrompe o fluxo antes da validação se nenhum identificador for retornado;
   assim nunca envia `mediaId: null` ao post.
-- A aba Publicação agora confere a duração real do MP4 antes de liberar o
-  envio. Se o arquivo estiver fora da faixa de 15–30 minutos ou fora da meta
-  persistida para aquela produção, a interface bloqueia a publicação e mostra
-  as durações real e planejada. A lista também mostra duração, tamanho do MP4
-  e data/hora de criação de cada vídeo.
+- A duração real do MP4 aparece em Produções e Publicação como informação,
+  junto de tamanho e data/hora. A publicação não bloqueia um vídeo concluído
+  por duração: a conferência da meta fica na revisão e antes de iniciar a
+  produção, onde ainda evita custo com um roteiro fora do planejamento.
 - O upload direto da WoopSocial sofreu um `524` do Cloudflare para um MP4 de
   55,4 MB, mesmo abaixo do limite documentado de 100 MB. Para MP4s a partir de
   25 MB, `woopsocial.py` usa a sessão de upload em partes com URLs

@@ -756,24 +756,7 @@ def _publication_language(script):
 
 
 def _publication_duration_error(record):
-    """Reject a completed artifact whose measured duration misses its video brief."""
-    duration = (record.get('artifacts') or {}).get('duration_seconds')
-    try:
-        duration = float(duration)
-    except (TypeError, ValueError):
-        return 'Não foi possível confirmar a duração real deste vídeo. Abra Produções e gere-o novamente antes de publicar.'
-    script = (record.get('params') or {}).get('structured_script') or {}
-    target = (script.get('metadata') or {}).get('target_duration_seconds')
-    try:
-        target = float(target) if target else None
-    except (TypeError, ValueError):
-        target = None
-    if target and not _duration_is_on_target(duration, target):
-        return (f'Este arquivo tem {duration / 60:.1f} minutos, mas a meta desta produção é '
-                f'{target / 60:.0f} minutos. Corrija o roteiro e gere uma nova produção antes de publicar.')
-    if not 300 <= duration <= 1800:
-        return (f'Este arquivo tem {duration / 60:.1f} minutos. O Estúdio publica vídeos entre 5 e 30 minutos; '
-                'gere uma nova produção antes de publicar.')
+    """Keep publication available; duration checks happen before rendering."""
     return None
 
 
