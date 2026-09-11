@@ -78,7 +78,7 @@ def generate_scene_audio(scene, params, target):
     Path(target).parent.mkdir(parents=True, exist_ok=True)
     maker = voice.tts(text=scene.narration, voice_name=params.voice_name,
                       voice_rate=params.voice_rate, voice_volume=params.voice_volume,
-                      voice_file=str(target))
+                      voice_file=str(target), detailed_errors=True)
     if maker is None or not valid_audio(target):
         raise RuntimeError(f'Não foi possível gerar a narração da cena {scene.index + 1}.')
     with AudioFileClip(str(target)) as clip:

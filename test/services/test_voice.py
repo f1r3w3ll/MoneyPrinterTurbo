@@ -172,6 +172,24 @@ class TestVoiceService(unittest.TestCase):
         context.load_verify_locations.assert_called_once_with(cadata='pem')
         make_client.assert_called_once_with(verify=context, timeout=240)
 
+    def test_elevenlabs_quota_failure_can_be_reported_to_the_studio(self):
+        class ElevenLabsFailure(Exception):
+            body = {
+                "detail": {
+                    "code": "quota_exceeded",
+                    "message": (
+                        "This request exceeds your quota. You have 18 credits remaining, "
+                        "while 95 credits are required for this request."
+                    ),
+                }
+            }
+
+        message = vs.elevenlabs_error_message(ElevenLabsFailure())
+
+        self.assertIn("cota", message.lower())
+        self.assertIn("18", message)
+        self.assertIn("95", message)
+
     @unittest.skipUnless(
         RUN_INTEGRATION_TESTS,
         "MPT_RUN_INTEGRATION_TESTS not set",

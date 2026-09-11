@@ -408,3 +408,14 @@ O gerador original foi preservado.
   campo começa vazio; quando escolhido para um roteiro, a frase pode ser
   alterada e é inserida somente na cena CTA, preservando a edição posterior do
   roteiro. O valor escolhido acompanha os metadados da produção.
+
+## Diagnóstico de créditos ElevenLabs — 11/09/2026
+
+- A falha observada com a voz masculina inglesa `wBXNqKUATyqu0RtYt25i` não foi
+  causada pela voz: a primeira cena foi sintetizada e a segunda foi recusada
+  pela ElevenLabs por `quota_exceeded` (18 créditos disponíveis para uma cena
+  que exigia 95). O Estúdio passa a preservar essa mensagem de cota durante a
+  produção, em vez de mostrá-la apenas como falha genérica da cena.
+- A chave atualmente configurada não possui a permissão `voices_read`, então
+  o aplicativo não deve depender de consulta ao catálogo da ElevenLabs para
+  pré-validar IDs de voz. A síntese pode continuar autorizada quando há saldo.

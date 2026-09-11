@@ -326,6 +326,7 @@ def tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    detailed_errors: bool = False,
 ) -> Union[SubMaker, None]:
     if is_no_voice(voice_name):
         duration_seconds = estimate_no_voice_duration(text)
@@ -344,7 +345,14 @@ def tts(
         parts = voice_name.split(":")
         if len(parts) >= 2:
             voice_id = parts[1]
-            return elevenlabs_tts(text, voice_id, voice_file, voice_rate, voice_volume)
+            return elevenlabs_tts(
+                text,
+                voice_id,
+                voice_file,
+                voice_rate,
+                voice_volume,
+                detailed_errors=detailed_errors,
+            )
         else:
             logger.error(f"Invalid ElevenLabs voice name format: {voice_name}")
             return None
@@ -859,12 +867,27 @@ def siliconflow_tts(
     return None
 
 
+def elevenlabs_error_message(error: Exception) -> str:
+    """Return a concise, safe ElevenLabs error for the Studio interface."""
+    body = getattr(error, "body", None)
+    detail = body.get("detail") if isinstance(body, dict) else None
+    if isinstance(detail, dict):
+        code = detail.get("code")
+        message = str(detail.get("message") or "").strip()
+        if code == "quota_exceeded":
+            return f"A cota de créditos da ElevenLabs é insuficiente para esta cena. {message}"
+        if message:
+            return f"A ElevenLabs recusou a síntese: {message}"
+    return "A ElevenLabs não conseguiu sintetizar esta voz. Verifique a chave, a voz e os créditos disponíveis."
+
+
 def elevenlabs_tts(
     text: str,
     voice_id: str,
     voice_file: str,
     voice_rate: float = 1.0,
     voice_volume: float = 1.0,
+    detailed_errors: bool = False,
 ) -> Union[SubMaker, None]:
     """
     Generate TTS using ElevenLabs API - highest quality, most natural voices
@@ -946,6 +969,8 @@ def elevenlabs_tts(
 
     except Exception as e:
         logger.error(f"ElevenLabs TTS failed: {str(e)}")
+        if detailed_errors:
+            raise RuntimeError(elevenlabs_error_message(e)) from e
         return None
     finally:
         if httpx_client is not None:
