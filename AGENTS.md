@@ -345,3 +345,20 @@ O gerador original foi preservado.
   (300–1.800 segundos). O mínimo foi aplicado ao slider de roteiro, editor
   manual, parser, validação da API, avisos de produção e bloqueio de
   publicação, para manter o fluxo consistente.
+
+## Movimento visual e CTA configurável — decisão aprovada em 10/09/2026
+
+- O Estúdio passará a oferecer, por vídeo, uma opção desativada por padrão para
+  abertura animada. Quando ativada, as primeiras cenas do gancho usarão clipes
+  curtos gerados por IA; o restante do vídeo continuará usando imagens estáticas
+  com movimento cinematográfico local.
+- O movimento local deve aplicar aproximação, afastamento ou deslocamento suave
+  e transições reais às imagens durante a composição. Ele não deve exigir uma
+  API adicional e será o comportamento visual padrão fora da abertura animada.
+- A abertura animada precisa permanecer limitada a poucas cenas curtas para
+  conter custo, tempo de processamento e inconsistências visuais. A interface
+  deve comunicar a etapa e seu progresso por cena.
+- Configurações ganhará um texto de CTA padrão por canal. Ao gerar um roteiro,
+  esse CTA será sugerido no idioma/configuração escolhidos e continuará
+  editável no roteiro antes de iniciar a produção. O usuário poderá optar por
+  usá-lo em cada vídeo, em vez de obrigar sua inserção.
