@@ -8,7 +8,7 @@ import time
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # add project root to python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -158,6 +158,19 @@ class TestVoiceService(unittest.TestCase):
 
         self.assertIs(result, sentinel)
         azure_tts_v1.assert_called_once()
+
+    def test_elevenlabs_client_uses_windows_trusted_certificates(self):
+        context, client = Mock(), Mock()
+        with patch.object(vs.os, 'name', 'nt'), \
+             patch.object(vs.ssl, 'create_default_context', return_value=context), \
+             patch.object(vs.ssl, 'enum_certificates', return_value=[(b'der', 'x509_asn', None)]), \
+             patch.object(vs.ssl, 'DER_cert_to_PEM_cert', return_value='pem'), \
+             patch.object(vs.httpx, 'Client', return_value=client) as make_client:
+            result = vs._elevenlabs_http_client()
+
+        self.assertIs(result, client)
+        context.load_verify_locations.assert_called_once_with(cadata='pem')
+        make_client.assert_called_once_with(verify=context, timeout=240)
 
     @unittest.skipUnless(
         RUN_INTEGRATION_TESTS,

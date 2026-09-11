@@ -7,6 +7,7 @@ import math
 import os
 import queue
 import re
+import ssl
 import subprocess
 import threading
 import time
@@ -16,6 +17,7 @@ from typing import Union
 from xml.sax.saxutils import unescape
 
 import edge_tts
+import httpx
 import requests
 from edge_tts import SubMaker
 from loguru import logger
@@ -214,6 +216,21 @@ def is_no_voice(voice_name: str | None) -> bool:
 def is_elevenlabs_voice(voice_name: str) -> bool:
     """Check if voice name indicates ElevenLabs TTS provider"""
     return voice_name.startswith("elevenlabs:")
+
+
+def _elevenlabs_http_client():
+    """Use the Windows trusted certificate store for ElevenLabs when available."""
+    if os.name != 'nt':
+        return None
+    try:
+        context = ssl.create_default_context()
+        for certificate, encoding, _trust in ssl.enum_certificates('ROOT'):
+            if encoding == 'x509_asn':
+                context.load_verify_locations(cadata=ssl.DER_cert_to_PEM_cert(certificate))
+        return httpx.Client(verify=context, timeout=240)
+    except Exception as exc:
+        logger.warning(f'Não foi possível carregar certificados do Windows para ElevenLabs: {exc}')
+        return None
 
 
 def estimate_no_voice_duration(text: str) -> float:
@@ -880,8 +897,13 @@ def elevenlabs_tts(
 
     logger.info(f"generating audio using ElevenLabs: voice_id={voice_id}, model={model}")
 
+    httpx_client = None
     try:
-        client = ElevenLabs(api_key=api_key)
+        httpx_client = _elevenlabs_http_client()
+        client = ElevenLabs(
+            api_key=api_key,
+            **({'httpx_client': httpx_client} if httpx_client else {}),
+        )
 
         # Clamp voice_rate to valid range (0.5 to 2.0)
         speed = max(0.5, min(2.0, voice_rate))
@@ -925,6 +947,9 @@ def elevenlabs_tts(
     except Exception as e:
         logger.error(f"ElevenLabs TTS failed: {str(e)}")
         return None
+    finally:
+        if httpx_client is not None:
+            httpx_client.close()
 
 
 def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker, None]:

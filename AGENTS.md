@@ -354,6 +354,15 @@ O gerador original foi preservado.
   vez com a exigência explícita de quantidade. Uma segunda resposta incompleta
   encerra a geração com erro; não há loop de tentativas.
 
+## ElevenLabs e certificados no Windows — 10/09/2026
+
+- Uma falha de narração na primeira cena foi diagnosticada como
+  `CERTIFICATE_VERIFY_FAILED`: o ambiente Python não confiava no certificado
+  apresentado pela rede local/VPN. O cliente ElevenLabs agora incorpora os
+  certificados confiáveis do repositório do Windows somente nesse cliente,
+  mantendo a validação HTTPS ativa. Uma síntese curta com a voz inglesa
+  configurada confirmou a geração de MP3 após a correção.
+
 ## Movimento visual e CTA configurável — decisão aprovada em 10/09/2026
 
 - O Estúdio passará a oferecer, por vídeo, uma opção desativada por padrão para
