@@ -1,6 +1,7 @@
 """Application implementation - ASGI."""
 
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -13,6 +14,13 @@ from app.config import config
 from app.models.exception import HttpException
 from app.router import root_api_router
 from app.utils import utils
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("startup event")
+    yield
+    logger.info("shutdown event")
 
 
 def exception_handler(request: Request, e: HttpException):
@@ -43,6 +51,7 @@ def get_application() -> FastAPI:
         description=config.project_description,
         version=config.project_version,
         debug=False,
+        lifespan=lifespan,
     )
     instance.include_router(root_api_router)
     instance.add_exception_handler(HttpException, exception_handler)
@@ -52,13 +61,18 @@ def get_application() -> FastAPI:
 
 app = get_application()
 
-# Configures the CORS middleware for the FastAPI app
+# Configures the CORS middleware for the FastAPI app.
+# `allow_credentials=True` is only valid with explicit origins;
+# when no origins are configured, fall back to "*" without credentials.
 cors_allowed_origins_str = os.getenv("CORS_ALLOWED_ORIGINS", "")
-origins = cors_allowed_origins_str.split(",") if cors_allowed_origins_str else ["*"]
+origins = [o.strip() for o in cors_allowed_origins_str.split(",") if o.strip()]
+allow_credentials = bool(origins)
+if not origins:
+    origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -70,13 +84,3 @@ app.mount(
 
 public_dir = utils.public_dir()
 app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
-
-
-@app.on_event("shutdown")
-def shutdown_event():
-    logger.info("shutdown event")
-
-
-@app.on_event("startup")
-def startup_event():
-    logger.info("startup event")

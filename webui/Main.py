@@ -303,6 +303,7 @@ if not config.app.get("hide_config", False):
                 ("Cloudflare", "cloudflare"),
                 ("ERNIE", "ernie"),
                 ("MiniMax", "minimax"),
+                ("EvoLink", "evolink"),
                 ("MiMo", "mimo"),
                 ("Pollinations", "pollinations"),
                 ("LiteLLM", "litellm"),
@@ -515,6 +516,20 @@ if not config.app.get("hide_config", False):
                             - **API Key**: [点击到官网申请](https://platform.deepseek.com/api_keys)
                             - **Base Url**: 固定为 https://api.deepseek.com
                             - **Model Name**: 固定为 deepseek-chat
+                            """
+
+            if llm_provider == "evolink":
+                if not llm_model_name:
+                    llm_model_name = "gpt-5.5"
+                if not llm_base_url:
+                    llm_base_url = "https://direct.evolink.ai/v1"
+                with llm_helper:
+                    tips = """
+                            ##### EvoLink Configuration
+                            > [EvoLink](https://evolink.ai) is an OpenAI-compatible gateway for language models.
+                            - **API Key**: create one at https://evolink.ai/dashboard/keys
+                            - **Base Url**: https://direct.evolink.ai/v1
+                            - **Model Name**: for example `gpt-5.5`, `deepseek-v4-flash`, or `gemini-3.1-pro`
                             """
 
             if llm_provider == "mimo":
@@ -813,9 +828,6 @@ with middle_panel:
             (tr("Pixabay"), "pixabay"),
             (tr("Coverr"), "coverr"),
             (tr("Local file"), "local"),
-            (tr("TikTok"), "douyin"),
-            (tr("Bilibili"), "bilibili"),
-            (tr("Xiaohongshu"), "xiaohongshu"),
         ]
 
         saved_video_source_name = config.app.get("video_source", "pexels")
