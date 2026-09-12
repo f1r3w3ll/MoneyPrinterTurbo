@@ -451,3 +451,28 @@ O gerador original foi preservado.
 - O gravador JSON agora usa um arquivo temporário exclusivo no diretório de
   destino e repete brevemente a substituição em bloqueios transitórios do
   Windows. A aplicação deve operar com uma única instância Streamlit.
+
+## Manutenção de transições e CTA — 11/09/2026
+
+- O pipeline encaminha as transições normalizadas do roteiro para a composição,
+  inclusive ao carregar checkpoints anteriores. Mudanças na transição invalidam
+  apenas a composição, preservando áudio e imagens.
+- O CTA usa as dimensões do vídeo base, preserva esse arquivo para retomada e
+  retorna um MP4 separado com sufixo `-with-cta`. Não substitui arquivos enquanto
+  os leitores do MoviePy estão abertos. A duração inclui a endcard.
+- A retomada reutiliza a composição base após falha de CTA e o vídeo final após
+  falha de thumbnail. Produções concluídas não são migradas automaticamente.
+- As duas produções locais de 11/09 às 21:35 e 21:44 falharam na fase de imagens
+  com `Connection error.`. Essa mensagem não comprova falha de certificado ou
+  causa específica de rede; não atribuí-la à composição ou ao CTA.
+
+## Retomada, exclusão e conexão de imagens — 11/09/2026
+
+- Criar vídeo oferece retomada por título/data e Apagar projeto ao lado, com
+  confirmação de exclusão permanente. O acompanhamento de falhas oferece as
+  mesmas ações; a exclusão mantém a proteção do serviço para trabalhos ativos.
+- Uma consulta HTTPS sem credenciais à OpenAI reproduziu
+  CERTIFICATE_VERIFY_FAILED. O cliente de imagens agora incorpora certificados
+  ROOT do Windows autorizados para servidor, mantendo verificação TLS ativa.
+  A mesma consulta após a correção respondeu 401 (esperado sem chave), confirmando
+  a conexão HTTPS. Não foi feita geração paga para validar esta correção.

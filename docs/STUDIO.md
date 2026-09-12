@@ -43,8 +43,14 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
 - A duração final é medida pelo áudio de cada cena. A estimativa do roteiro
   de 5–30 minutos não garante essa duração real; o histórico informa o valor
   medido e avisa quando o resultado fica fora da faixa.
-- A composição usa imagens estáticas e cortes, com áudio e legendas por cena.
-  Não há editor de timeline, publicação no YouTube ou música de fundo nesta tela.
+- A composição aplica movimento às imagens e as transições do roteiro, com
+  áudio e legendas por cena. A abertura animada intensifica o movimento inicial.
+  A aba Publicação permite enviar o resultado ao YouTube pela WoopSocial.
+  Não há editor de timeline ou música de fundo nesta tela.
+- O CTA preserva as dimensões do vídeo, inclusive em retrato, e sua duração
+  entra no total informado. A composição base é preservada em arquivo separado:
+  se o CTA falhar, a retomada reutiliza essa base; se a thumbnail falhar, reutiliza
+  o vídeo final com CTA, sem acrescentá-lo novamente.
 - A renderização limita blocos a até cinco minutos e oito cenas por bloco.
   O consumo real depende de resolução e duração. Preparar o download de um vídeo
   carrega seu conteúdo na memória do servidor.
@@ -57,6 +63,13 @@ manifesto de artefatos e checkpoint. Credenciais não fazem parte dos parâmetro
 
 Fechar apenas a aba mantém o trabalho enquanto o processo Streamlit estiver
 ativo. Após interromper o processo, reabra o estúdio e use **Retomar produção**.
+O botão aparece no início de **Criar vídeo**, em **Continuar uma produção**:
+escolha a tentativa pelo título e data. Também aparece no acompanhamento quando
+há falha e dentro do projeto na aba **Produções**. **Gerar vídeo completo** inicia
+uma produção nova; não retoma uma anterior.
+Ao lado da retomada, **Apagar projeto** permite remover permanentemente os
+arquivos daquela produção após confirmação. Produções em execução ou na fila
+continuam protegidas contra exclusão.
 Áudios e imagens válidos são reutilizados; arquivos ausentes ou inválidos são
 regenerados e podem causar novas cobranças. Os parâmetros do roteiro ficam
 fixos na retomada; para alterá-los, crie outra produção. Corrigir credenciais
