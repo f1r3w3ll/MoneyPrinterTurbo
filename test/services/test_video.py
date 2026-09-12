@@ -580,10 +580,9 @@ class TestVideoService(unittest.TestCase):
                 font=font_path,
                 fontsize=30
             )
-            print(wrapped_text_en, text_height_en)
             # verify text is wrapped
             self.assertIn("\n", wrapped_text_en)
-            
+
             # test chinese text wrapping
             test_text_zh = "这是一段用来测试中文长句换行的文本内容，应该会根据宽度限制进行换行处理"
             wrapped_text_zh, text_height_zh = vd.wrap_text(
@@ -591,8 +590,7 @@ class TestVideoService(unittest.TestCase):
                 max_width=300,
                 font=font_path,
                 fontsize=30
-            )   
-            print(wrapped_text_zh, text_height_zh)
+            )
             # verify chinese text is wrapped
             self.assertIn("\n", wrapped_text_zh)
         except Exception as e:

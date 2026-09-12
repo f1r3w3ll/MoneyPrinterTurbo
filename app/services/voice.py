@@ -1019,6 +1019,7 @@ def gemini_tts(
             return None
         
         # 导出为MP3格式
+        ensure_file_path_exists(voice_file)
         audio_segment.export(voice_file, format="mp3")
         
         logger.info(f"completed, output file: {voice_file}")
