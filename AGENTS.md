@@ -476,3 +476,14 @@ O gerador original foi preservado.
   ROOT do Windows autorizados para servidor, mantendo verificação TLS ativa.
   A mesma consulta após a correção respondeu 401 (esperado sem chave), confirmando
   a conexão HTTPS. Não foi feita geração paga para validar esta correção.
+
+## Isolamento dos testes do Estúdio — 12/09/2026
+
+- Os testes de UI do painel de recuperação resolviam `app.services.studio`
+  pelo atributo do pacote pai quando `test_studio` executava antes, ignorando
+  o módulo falso injetado em `sys.modules`; o backend real retornava lista
+  vazia e os botões de recuperação não eram renderizados (`KeyError`). Os
+  scripts dos testes agora resolvem o módulo com `importlib.import_module`,
+  seguindo o padrão de `webui/studio.py`. Seleção completa do CI: 96 testes
+  OK. `TemporaryDirectory` usa `ignore_cleanup_errors=True` para evitar falha
+  de limpeza no Windows com arquivos ainda abertos por leitores.
