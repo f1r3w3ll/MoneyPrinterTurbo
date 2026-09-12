@@ -10,6 +10,8 @@ Supports multiple AI image generation providers:
 import os
 import time
 import base64
+import ssl
+import httpx
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple
 
@@ -17,6 +19,16 @@ import requests
 from loguru import logger
 
 from app.config import config
+
+
+def _image_http_client():
+    """Trust the OS certificate store without disabling HTTPS verification."""
+    context = ssl.create_default_context()
+    if os.name == 'nt':
+        for certificate, encoding, trust in ssl.enum_certificates('ROOT'):
+            if encoding == 'x509_asn' and (trust is True or ssl.Purpose.SERVER_AUTH.oid in trust):
+                context.load_verify_locations(cadata=ssl.DER_cert_to_PEM_cert(certificate))
+    return httpx.Client(verify=context, timeout=600)
 
 
 class ImageGenerationService:
@@ -205,17 +217,32 @@ class ImageGenerationService:
             quality = {'standard': 'medium', 'hd': 'high'}.get(quality, quality)
             size = {'1024x1792': '1024x1536', '1792x1024': '1536x1024'}.get(size, size)
 
-        client = OpenAI(api_key=api_key)
-
         # Enhance prompt for better quality
         enhanced_prompt = f"{prompt}, high quality, detailed, cinematic lighting"
 
         logger.debug(f"DALL-E request: model={model}, quality={quality}, size={size}")
 
         # Generate image
-        response = client.images.generate(
-            model=model, prompt=enhanced_prompt, size=size, quality=quality, n=1
-        )
+        with _image_http_client() as http_client:
+            client = OpenAI(api_key=api_key, http_client=http_client)
+            try:
+                response = client.images.generate(
+                    model=model, prompt=enhanced_prompt, size=size, quality=quality, n=1
+                )
+            except Exception as exc:
+                from openai import APIConnectionError
+                if not isinstance(exc, APIConnectionError):
+                    raise
+                cause = exc.__cause__
+                certificate_error = False
+                for _ in range(8):
+                    if cause is None:
+                        break
+                    certificate_error |= 'CERTIFICATE_VERIFY_FAILED' in str(cause)
+                    cause = cause.__cause__
+                detail = ('O certificado HTTPS da rede não foi reconhecido. Confira os certificados do Windows e a VPN.'
+                          if certificate_error else 'Confira a conexão com a internet, VPN ou proxy e tente retomar.')
+                raise RuntimeError(f'Falha de conexão ao gerar a imagem {scene_id}. {detail} Os arquivos já gerados foram preservados.') from exc
 
         # Download image
         image_path = os.path.join(output_dir, f"{scene_id}.png")
