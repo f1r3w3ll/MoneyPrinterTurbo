@@ -417,12 +417,12 @@ class LongFormVideoParams(VideoParams):
     use_structured_script: bool = False
 
     # Image generation
-    image_provider: Optional[str] = "dalle"  # dalle, sd, midjourney
+    image_provider: Optional[str] = "dalle"  # dalle, sd (midjourney reserved, not implemented)
     image_quality: Optional[str] = "standard"  # standard, hd
     image_size: Optional[str] = "1024x1024"
 
     # Premium TTS
-    premium_tts_provider: Optional[str] = None  # elevenlabs, playht, murf
+    premium_tts_provider: Optional[str] = None  # elevenlabs implemented; playht/murf reserved, not implemented
 
     # Thumbnail
     thumbnail_style: Optional[str] = "hybrid"  # hybrid, ai-only, template

@@ -396,7 +396,8 @@ upload_post_youtube_privacy_status = "public"
 ######################################################################################################
 
 [image_generation]
-# Default provider for AI image generation: dalle, sd (Stable Diffusion), midjourney
+# Default provider for AI image generation: dalle or sd (Stable Diffusion).
+# midjourney is reserved and not implemented in this build; selecting it fails fast.
 default_provider = "dalle"
 
 # DALL-E Configuration (uses existing openai_api_key from [app] section)
@@ -409,8 +410,9 @@ sd_api_key = ""
 sd_model = "stability-ai/sdxl"
 sd_base_url = "https://api.replicate.com"
 
-# Midjourney Configuration (via unofficial API wrapper)
-# Note: Midjourney doesn't have an official API yet
+# Midjourney Configuration (reserved)
+# Note: not implemented in this build. Keys are kept only so existing
+# config.toml files remain valid; the service rejects midjourney on startup.
 midjourney_api_key = ""
 midjourney_base_url = ""
 
@@ -421,13 +423,13 @@ elevenlabs_api_key = ""
 elevenlabs_model = "eleven_multilingual_v2"
 elevenlabs_voice_id = ""      # Get voice IDs from https://elevenlabs.io/app/voice-library
 
-# Play.ht TTS
+# Play.ht TTS (reserved, not implemented in this build)
 # Get your credentials at https://play.ht/app/api-access
 playht_api_key = ""
 playht_user_id = ""
 playht_voice = ""
 
-# Murf.ai TTS
+# Murf.ai TTS (reserved, not implemented in this build)
 # Get your API key at https://murf.ai/resources/api-documentation
 murf_api_key = ""
 murf_voice_id = ""

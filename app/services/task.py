@@ -341,7 +341,7 @@ def _record_task_analytics(task_id, params, result, duration, task_type, error=N
         if isinstance(result, dict):
             if result.get("videos"):
                 result_summary["videos"] = result["videos"]
-            if result.get("video"):
+            elif result.get("video"):
                 result_summary["videos"] = [result["video"]]
             if result.get("video"):
                 result_summary["video"] = result["video"]

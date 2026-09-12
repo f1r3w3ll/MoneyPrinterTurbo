@@ -4,7 +4,7 @@ Image Generation Service for Long-Form Videos
 Supports multiple AI image generation providers:
 - DALL-E 3 (OpenAI)
 - Stable Diffusion (via Replicate or local)
-- Midjourney (via API wrapper)
+- Midjourney (reserved, not implemented in this build)
 """
 
 import os
@@ -39,12 +39,19 @@ class ImageGenerationService:
         Initialize image generation service
 
         Args:
-            provider: Provider name (dalle, sd, midjourney).
+            provider: Provider name (dalle, sd). Midjourney is reserved and
+                     not implemented in this build.
                      If None, uses config default.
         """
         self.provider = provider or config.image_generation.get(
             "default_provider", "dalle"
         )
+        if self.provider == "midjourney":
+            raise ValueError(
+                "Midjourney is not implemented in this build. Use 'dalle' or 'sd'."
+            )
+        if self.provider not in ("dalle", "sd"):
+            raise ValueError(f"Unsupported image provider: {self.provider}")
         logger.info(f"Initialized ImageGenerationService with provider: {self.provider}")
 
     def generate_image(
@@ -77,14 +84,9 @@ class ImageGenerationService:
 
         if self.provider == "dalle":
             return self._generate_dalle(prompt, scene_id, output_dir, **kwargs)
-        elif self.provider == "sd":
-            return self._generate_stable_diffusion(
-                prompt, scene_id, output_dir, **kwargs
-            )
-        elif self.provider == "midjourney":
-            return self._generate_midjourney(prompt, scene_id, output_dir, **kwargs)
-        else:
-            raise ValueError(f"Unsupported image provider: {self.provider}")
+        return self._generate_stable_diffusion(
+            prompt, scene_id, output_dir, **kwargs
+        )
 
     def batch_generate(
         self,
@@ -327,38 +329,3 @@ class ImageGenerationService:
         logger.info(f"Stable Diffusion image generated successfully: {image_path}")
 
         return image_path
-
-    def _generate_midjourney(
-        self, prompt: str, scene_id: str, output_dir: str, **kwargs
-    ) -> str:
-        """
-        Generate image using Midjourney (via API wrapper)
-
-        Note: Midjourney doesn't have an official API yet.
-        This implementation assumes a third-party API wrapper.
-
-        Args:
-            prompt: Image description
-            scene_id: Scene identifier
-            output_dir: Output directory
-
-        Returns:
-            Path to generated image
-        """
-        api_key = config.image_generation.get("midjourney_api_key")
-        base_url = config.image_generation.get("midjourney_base_url")
-
-        if not api_key or not base_url:
-            raise ValueError("Midjourney API credentials not configured")
-
-        logger.warning(
-            "Midjourney integration uses unofficial API wrapper. "
-            "Results may vary."
-        )
-
-        # This is a placeholder implementation
-        # Actual implementation depends on the specific API wrapper being used
-        raise NotImplementedError(
-            "Midjourney integration not yet implemented. "
-            "Use DALL-E or Stable Diffusion instead."
-        )

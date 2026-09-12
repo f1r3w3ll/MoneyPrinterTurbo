@@ -508,3 +508,19 @@ O gerador original foi preservado.
   seleção de TTS premium ocorre pelo prefixo `elevenlabs:<voice_id>` em
   `voice_name`, com validação em `studio_settings.py`, sem necessidade de
   encaminhar `premium_tts_provider` a `voice.tts`.
+
+## Fail-fast de providers reservados — 12/09/2026
+
+- `ImageGenerationService` agora valida o provider no `__init__`: `midjourney`
+  e nomes desconhecidos falham imediatamente com `ValueError` claro, em vez de
+  `NotImplementedError` no meio da geração. O método morto `_generate_midjourney`
+  foi removido; comentários em `schema.py` e `config.example.toml` marcam
+  midjourney/playht/murf como reservados e sem implementação nesta build (as
+  chaves seguem no TOML apenas para não invalidar `config.toml` existentes).
+  O Estúdio já rejeitava esses providers em `studio_settings.py`; a mudança
+  protege o caminho direto da API (`/longform-videos`).
+- `_record_task_analytics` em `task.py` tinha dois blocos `if result.get("video")`
+  redundantes que sobrescreviam a lista `videos` com um item único quando ambos
+  os campos existiam; agora usa `elif`, preservando a lista completa.
+- Seleção completa do CI: 96 testes OK. Sem necessidade de reiniciar o Streamlit:
+  as mudanças afetam apenas caminhos de erro inalcançáveis pela interface.
