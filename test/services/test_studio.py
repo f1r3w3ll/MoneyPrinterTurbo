@@ -12,6 +12,22 @@ from test.services.test_longform_pipeline import example_script
 
 
 class StudioTests(unittest.TestCase):
+    def test_image_client_keeps_tls_verification_and_windows_trust(self):
+        from app.services import image_generation
+        import ssl
+        context = Mock()
+        with patch.object(image_generation.os, 'name', 'nt'), \
+             patch.object(image_generation.ssl, 'create_default_context', return_value=context), \
+             patch.object(image_generation.ssl, 'enum_certificates', return_value=[
+                 (b'cert', 'x509_asn', {ssl.Purpose.SERVER_AUTH.oid}),
+                 (b'ignored', 'x509_asn', set()),
+             ], create=True), \
+             patch.object(image_generation.ssl, 'DER_cert_to_PEM_cert', return_value='pem'), \
+             patch.object(image_generation.httpx, 'Client') as client:
+            image_generation._image_http_client()
+            context.load_verify_locations.assert_called_once_with(cadata='pem')
+            client.assert_called_once_with(verify=context, timeout=600)
+
     def test_channel_cta_is_persisted_with_each_profile(self):
         from app.services import editorial
 

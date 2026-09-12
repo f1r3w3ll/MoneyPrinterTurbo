@@ -11,6 +11,32 @@ from webui import studio
 
 
 class StudioUITest(unittest.TestCase):
+    def test_recovery_delete_requires_confirmation_and_clears_active(self):
+        backend = ModuleType('app.services.studio')
+        records = [{'id': 'failed-1', 'title': 'Vídeo salvo', 'status': 'failed'}]
+        backend.list_productions = Mock(side_effect=lambda: list(records))
+        backend.delete_production = Mock(side_effect=lambda task_id: records.clear())
+        backend.resume = Mock()
+        with patch.dict(sys.modules, {'app.services.studio': backend}):
+            app = AppTest.from_string(
+                'from webui.studio import _recovery_panel\n'
+                'from app.services import studio\n_recovery_panel(studio)', default_timeout=40).run()
+            app.session_state['studio_active'] = 'failed-1'
+            app.button(key='delete_creation').click().run()
+            backend.delete_production.assert_not_called()
+            app.button(key='delete_creation_cancel').click().run()
+            backend.delete_production.assert_not_called()
+            app.button(key='delete_creation').click().run()
+            app.button(key='delete_creation_confirm').click().run()
+            backend.delete_production.assert_called_once_with('failed-1')
+            backend.resume.assert_not_called()
+            self.assertNotIn('studio_active', app.session_state)
+            app = AppTest.from_string(
+                'from webui.studio import _recovery_panel\n'
+                'from app.services import studio\n_recovery_panel(studio)', default_timeout=40).run()
+            self.assertNotIn('resume_creation', [button.key for button in app.button])
+            self.assertFalse(app.exception)
+
     def test_publication_uses_editorial_title_and_extracts_description_from_json(self):
         record = {
             'title': 'Título de reserva',
@@ -155,6 +181,29 @@ class StudioUITest(unittest.TestCase):
             self.assertEqual(params.image_size, '1024x1792')
             app.run()
             self.assertEqual(backend.submit.call_count, 1)
+            self.assertFalse(app.exception)
+
+    def test_creation_recovery_uses_existing_production_without_new_submission(self):
+        backend = ModuleType('app.services.studio')
+        backend.list_productions = Mock(return_value=[
+            {'id': 'failed-1', 'title': 'Vídeo salvo', 'status': 'failed', 'created_at': 100,
+             'error': 'Connection error.'},
+            {'id': 'running-1', 'title': 'Em andamento', 'status': 'running'},
+        ])
+        backend.resume = Mock()
+        backend.submit = Mock()
+        with patch.dict(sys.modules, {'app.services.studio': backend}):
+            app = AppTest.from_string(
+                'from webui.studio import _recovery_panel\n'
+                'from app.services import studio\n_recovery_panel(studio)', default_timeout=40).run()
+            self.assertFalse(app.exception)
+            self.assertEqual(len(app.selectbox(key='recovery_production').options), 1)
+            app.button(key='resume_creation').click().run()
+            backend.resume.assert_called_once_with('failed-1')
+            backend.submit.assert_not_called()
+            self.assertEqual(app.session_state.studio_active, 'failed-1')
+            app.run()
+            backend.resume.assert_called_once()
             self.assertFalse(app.exception)
 
     def test_invalid_settings_prevent_job_and_failed_job_can_resume(self):

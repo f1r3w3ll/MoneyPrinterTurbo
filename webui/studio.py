@@ -583,6 +583,63 @@ def _produce(backend, settings, script):
             st.success('Produção iniciada. Acompanhe abaixo; você pode continuar trabalhando.')
 
 
+def _resume_action(backend, task_id, key):
+    if st.button('Retomar produção', key=key, type='primary'):
+        try:
+            backend.resume(task_id)
+            st.session_state.studio_active = task_id
+            st.success('Retomada solicitada. Os arquivos válidos já gerados serão reutilizados.')
+        except Exception as exc:
+            st.error(redact(exc))
+
+
+def _delete_action(backend, record, key):
+    task_id = record['id']
+    pending = f'{key}_pending'
+    if st.button('Apagar projeto', key=key):
+        st.session_state[pending] = task_id
+    if st.session_state.get(pending) == task_id:
+        st.warning(f"Apagar permanentemente “{record.get('title', task_id)}”? Isso remove áudio, imagens, vídeo, roteiro, legendas e checkpoints desta produção.")
+        if st.button('Confirmar exclusão permanente', key=f'{key}_confirm'):
+            try:
+                backend.delete_production(task_id)
+            except Exception as exc:
+                st.error(redact(exc))
+            else:
+                st.session_state.pop(pending, None)
+                if st.session_state.get('studio_active') == task_id:
+                    st.session_state.pop('studio_active', None)
+                st.rerun()
+        if st.button('Cancelar', key=f'{key}_cancel'):
+            st.session_state.pop(pending, None)
+            st.rerun()
+
+
+def _recovery_panel(backend):
+    records = [record for record in backend.list_productions()
+               if record.get('status') in ('failed', 'interrupted')]
+    if not records:
+        return
+    st.subheader('Continuar uma produção')
+    st.info('Há produções que não terminaram. Retome uma delas para aproveitar os arquivos já gerados.')
+
+    def label(record):
+        created = record.get('created_at')
+        date = datetime.fromtimestamp(float(created)).strftime('%d/%m/%Y %H:%M') if created else record['id']
+        return f"{record.get('title', record['id'])} · {date} · {STATUS.get(record['status'], record['status'])}"
+
+    selected = st.selectbox('Produção para continuar', records, format_func=label,
+                            key='recovery_production')
+    st.caption('A retomada usa o roteiro e as configurações salvos nessa produção. Arquivos ausentes podem exigir novas chamadas às APIs.')
+    if selected.get('error'):
+        st.error(redact(selected['error']))
+    resume_column, delete_column = st.columns(2)
+    with resume_column:
+        _resume_action(backend, selected['id'], 'resume_creation')
+    with delete_column:
+        _delete_action(backend, selected, 'delete_creation')
+
+
 @st.fragment(run_every='2s')
 def _active_production_monitor(task_id):
     backend = importlib.import_module('app.services.studio')
@@ -600,6 +657,11 @@ def _active_production_monitor(task_id):
         st.success('Vídeo concluído. Abra Produções para assistir ou baixar os arquivos.')
     elif record.get('status') in ('failed', 'interrupted'):
         st.error(redact(record.get('error') or 'A produção foi interrompida.'))
+        resume_column, delete_column = st.columns(2)
+        with resume_column:
+            _resume_action(backend, task_id, f'resume_active_{task_id}')
+        with delete_column:
+            _delete_action(backend, record, f'delete_active_{task_id}')
 
 
 @st.fragment(run_every='2s')
@@ -641,12 +703,8 @@ def _history():
                     st.rerun()
                 except Exception as exc:
                     st.error(redact(exc))
-            if record['status'] in ('failed', 'interrupted') and st.button('Retomar produção', key=f'resume_{task_id}'):
-                try:
-                    backend.resume(task_id)
-                    st.success('Retomada solicitada.')
-                except Exception as exc:
-                    st.error(redact(exc))
+            if record['status'] in ('failed', 'interrupted'):
+                _resume_action(backend, task_id, f'resume_{task_id}')
             artifacts = record.get('artifacts') or {}
             if artifacts.get('duration_seconds'):
                 st.caption(f"Duração real: {float(artifacts['duration_seconds']) / 60:.1f} minutos")
@@ -884,15 +942,16 @@ def render():
             settings = _settings(settings_service)
             profile = _channel_profile_editor()
         with create_tab:
+            _recovery_panel(backend)
             brief, selected_package = _brief_and_packaging(profile)
             _script_sources(backend, settings, profile, brief, selected_package)
             script = _editor(backend)
             if script:
                 _produce(backend, settings, script)
-                if active_id := st.session_state.get('studio_active'):
-                    _active_production_monitor(active_id)
             else:
                 st.info('Salve um roteiro para liberar as configurações de produção e a geração do vídeo.')
+            if active_id := st.session_state.get('studio_active'):
+                _active_production_monitor(active_id)
     except Exception as exc:
         st.error(f'Não foi possível concluir esta ação: {redact(exc)}')
     try:

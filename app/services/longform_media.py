@@ -359,6 +359,20 @@ def _silent_audio(duration):
     return AudioClip(frame, duration=duration, fps=44100)
 
 
+def cta_duration(params):
+    """Duration of the configured endcard, including the supplied clip limit."""
+    mode = getattr(params, 'cta_mode', 'text')
+    if mode == 'text':
+        return 5. if str(getattr(params, 'cta_text', '') or '').strip() else 0.
+    asset = getattr(params, 'cta_asset_path', '')
+    if mode == 'image':
+        if not valid_image(asset):
+            raise ValueError('A imagem de CTA está ausente ou inválida.')
+        return 5.
+    with VideoFileClip(str(asset)) as clip:
+        return min(15., clip.duration)
+
+
 def append_cta(video_path, params, folder, resolution=None, fps=24):
     """Append a short branded CTA card or supplied CTA media to a completed video."""
     mode = str(getattr(params, 'cta_mode', 'text') or 'text').lower()
@@ -367,16 +381,16 @@ def append_cta(video_path, params, folder, resolution=None, fps=24):
     if mode == 'text' and not text:
         return video_path
     if mode == 'image' and not valid_image(asset_path):
-        return video_path
+        raise ValueError('A imagem de CTA está ausente ou inválida.')
     if mode == 'video' and not nonempty(asset_path):
-        return video_path
-    size = resolution or (1280, 720)
+        raise ValueError('O vídeo de CTA está ausente ou inválido.')
     folder = Path(folder)
     target = folder / f'{Path(video_path).stem}-with-cta.mp4'
     resources = []
     try:
         base = VideoFileClip(str(video_path))
         resources.append(base)
+        size = tuple(base.size)
         if mode == 'video':
             card = VideoFileClip(asset_path)
             resources.append(card)
@@ -402,14 +416,14 @@ def append_cta(video_path, params, folder, resolution=None, fps=24):
             temp_audiofile=str(folder / f'{target.stem}.m4a'))
         if not valid_video(target):
             raise RuntimeError('A tela final de CTA não foi renderizada corretamente.')
-        os.replace(target, video_path)
-        return str(video_path)
     finally:
         for resource in reversed(resources):
             try:
                 resource.close()
             except Exception:
                 pass
+    # Keep the composed base intact for recovery, and close readers before returning.
+    return str(target)
 
 
 def make_thumbnail(script, params, folder):

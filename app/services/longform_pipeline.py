@@ -9,7 +9,8 @@ from app.services.checkpoint import CheckpointManager
 from app.services.script_parser import ScriptParser
 from app.services.studio_storage import write_json
 from app.services.longform_media import (generate_scene_audio, generate_scene_image, compose,
-    valid_audio, valid_image, valid_video, make_thumbnail, write_subtitles, append_cta)
+    valid_audio, valid_image, valid_video, make_thumbnail, write_subtitles, append_cta,
+    cta_duration)
 
 
 def run(task_id, params, folder, report=None, stop_at='complete'):
@@ -37,7 +38,7 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
             manager.save_checkpoint(state)
         write_json(folder / 'artifacts.json', dict(video=data.get('video'), thumbnail=data.get('thumbnail'),
             script=str(folder / 'script.json'), subtitles=data.get('subtitles'),
-            duration_seconds=sum(entry.get('duration', 0.) for entry in entries.values())))
+            duration_seconds=data.get('duration_seconds', sum(entry.get('duration', 0.) for entry in entries.values()))))
         report(phase, progress)
 
     try:
@@ -48,8 +49,14 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
             return {'script': str(script_file)}
         for number, scene in enumerate(script.scenes):
             entry = entries.setdefault(str(scene.index), {'index': scene.index})
+            if entry.get('transition', 'none') != scene.transition:
+                data.pop('video', None)
+                data.pop('base_video', None)
+            entry['transition'] = scene.transition
             if not valid_audio(entry.get('audio')):
                 data.pop('video', None)
+                data.pop('base_video', None)
+                data.pop('duration_seconds', None)
                 data.pop('subtitles', None)
                 save('audio', 5 + int(30 * number / len(script.scenes)))
                 audio = generate_scene_audio(scene, params, folder / f'audio-{scene.index}.mp3')
@@ -61,6 +68,7 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
             entry = entries[str(scene.index)]
             if not valid_image(entry.get('image')):
                 data.pop('video', None)
+                data.pop('base_video', None)
                 save('images', 35 + int(20 * number / len(script.scenes)))
                 entry['image'] = generate_scene_image(scene, params, folder / f'scene-{scene.index}.png')
                 state.completed_scenes = [int(key) for key, item in entries.items() if item.get('image')]
@@ -74,18 +82,25 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
         if stop_at in ('subtitle', 'subtitles'):
             return {'subtitles': subtitles}
         expected = sum(entry['duration'] for entry in ordered)
-        if not valid_video(data.get('video'), expected_duration=expected):
+        final_expected = expected + cta_duration(params)
+        if not valid_video(data.get('video'), expected_duration=final_expected):
             data.pop('video', None)
             save('composition', 60)
-            data['video'] = compose(ordered, params, folder,
-                progress=lambda fraction: report('composition', 60 + int(fraction * 30)),
-                output_name=f'{folder.name}.mp4')
-            data['video'] = append_cta(data['video'], params, folder)
+            if not valid_video(data.get('base_video'), expected_duration=expected):
+                data['base_video'] = compose(ordered, params, folder,
+                    progress=lambda fraction: report('composition', 60 + int(fraction * 30)),
+                    output_name=f'{folder.name}.mp4')
+            save('composition', 90)
+            data['video'] = append_cta(data['base_video'], params, folder)
+            if not valid_video(data['video'], expected_duration=final_expected):
+                data.pop('video', None)
+                raise RuntimeError('A duração do vídeo com CTA não corresponde à duração esperada.')
+        data['duration_seconds'] = final_expected
         save('thumbnail', 92)
         if stop_at != 'video' and not valid_image(data.get('thumbnail')):
             data['thumbnail'] = make_thumbnail(script, params, folder)
         result = dict(video=data['video'], thumbnail=data.get('thumbnail'), script=str(script_file),
-                      subtitles=subtitles, duration_seconds=sum(entry['duration'] for entry in ordered))
+                      subtitles=subtitles, duration_seconds=data['duration_seconds'])
         save('complete', 100)
         # Retain validated artifacts for recovery if a final file is lost later.
         return result

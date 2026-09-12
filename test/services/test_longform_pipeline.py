@@ -197,7 +197,7 @@ class LongformTests(unittest.TestCase):
             logo = folder / 'logo.png'
             Image.new('RGBA', (80, 80), '#20b7a4').save(logo)
             audio = AudioClip(lambda t: 0 * t, duration=1, fps=8000)
-            clip = ColorClip((160, 90), color=(16, 40, 70), duration=1).with_audio(audio)
+            clip = ColorClip((90, 160), color=(16, 40, 70), duration=1).with_audio(audio)
             clip.write_videofile(str(source), fps=12, codec='libx264', audio_codec='aac', logger=None)
             clip.close(); audio.close()
             params = LongFormVideoParams(
@@ -205,11 +205,14 @@ class LongformTests(unittest.TestCase):
                 channel_logo_path=str(logo), bgm_type='',
             )
 
-            result = append_cta(str(source), params, folder, resolution=(160, 90), fps=12)
+            result = append_cta(str(source), params, folder, fps=12)
 
             self.assertTrue(valid_video(result))
             with VideoFileClip(result) as rendered:
                 self.assertAlmostEqual(rendered.duration, 6., delta=.3)
+                self.assertEqual(rendered.size, [90, 160])
+            with VideoFileClip(str(source)) as original:
+                self.assertAlmostEqual(original.duration, 1., delta=.2)
 
     def test_pipeline_appends_configured_cta_after_composition(self):
         from app.services import longform_pipeline as pipeline
@@ -219,6 +222,7 @@ class LongformTests(unittest.TestCase):
                 video_subject='Teste', structured_script=example_script(), cta_mode='text',
                 cta_text='Subscribe', bgm_type='',
             )
+            params.structured_script.scenes[0].transition = 'fade'
             def audio(scene, _params, target):
                 Path(target).write_bytes(b'audio')
                 return {'path': str(target), 'duration': 3., 'cues': []}
@@ -231,13 +235,21 @@ class LongformTests(unittest.TestCase):
                 return str(target)
             with patch.object(pipeline, 'generate_scene_audio', side_effect=audio), \
                  patch.object(pipeline, 'generate_scene_image', side_effect=image), \
-                 patch.object(pipeline, 'compose', side_effect=render), \
+                 patch.object(pipeline, 'compose', side_effect=render) as composition, \
                  patch.object(pipeline, 'valid_audio', side_effect=bool), \
                  patch.object(pipeline, 'valid_image', side_effect=bool), \
                  patch.object(pipeline, 'valid_video', side_effect=lambda value, **_kw: bool(value)), \
-                 patch.object(pipeline, 'append_cta', return_value=str(folder / 'final.mp4')) as append:
+                 patch.object(pipeline, 'append_cta', side_effect=[RuntimeError('CTA failed'), str(folder / 'final.mp4')]) as append:
+                with self.assertRaisesRegex(RuntimeError, 'CTA failed'):
+                    pipeline.run('test-cta', params, folder, stop_at='video')
+                self.assertEqual(composition.call_args.args[0][0]['transition'], 'fade')
+                composition.reset_mock()
+                result = pipeline.run('test-cta', params, folder, stop_at='video')
+                self.assertEqual(result['duration_seconds'], 20.)
+                composition.assert_not_called()
                 pipeline.run('test-cta', params, folder, stop_at='video')
-            append.assert_called_once()
+                composition.assert_not_called()
+            self.assertEqual(append.call_count, 2)
 
 
 if __name__ == '__main__':
