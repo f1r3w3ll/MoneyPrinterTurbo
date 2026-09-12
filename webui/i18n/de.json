@@ -43,6 +43,8 @@
     "Landscape": "Landschaft 16:9",
     "Clip Duration": "Maximale Dauer einzelner Videoclips in sekunden",
     "Number of Videos Generated Simultaneously": "Anzahl der parallel generierten Videos",
+    "Match Materials to Script Order": "Materialien mit der Skriptreihenfolge abgleichen",
+    "Match Materials to Script Order Help": "Standardmäßig deaktiviert. Gilt hauptsächlich für Online-Materialquellen. Wenn aktiviert, werden Schlüsselwörter in der Reihenfolge des Skripts generiert und Materialien in dieser Reihenfolge heruntergeladen/zusammengefügt, um visuelle Abweichungen zur aktuellen Sprachausgabe zu reduzieren.",
     "Advanced Video Settings": "Erweiterte Videoeinstellungen",
     "Video Encoder": "Video-Encoder",
     "Video Encoder Help": "Erweiterte Option. libx264 ist die stabilste Standardauswahl. Wenn ein Hardware-Encoder ausgewählt ist, fällt die App auf libx264 zurück, falls der aktuelle FFmpeg-Build, die GPU oder der Treiber ihn nicht verwenden kann.",

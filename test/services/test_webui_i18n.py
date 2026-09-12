@@ -30,30 +30,37 @@ def _load_translation(locale):
     return data.get("Translation", {})
 
 
+def _collect_static_tr_keys():
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    visitor = _TrKeyVisitor()
+    visitor.visit(tree)
+    return visitor.keys
+
+
+def _non_english_locales():
+    return sorted(
+        p.stem for p in I18N_DIR.glob("*.json") if p.stem != "en"
+    )
+
+
 class TestWebuiI18n(unittest.TestCase):
     def test_english_locale_covers_static_webui_labels(self):
-        tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
-        visitor = _TrKeyVisitor()
-        visitor.visit(tree)
-
         en_keys = set(_load_translation("en"))
+        self.assertEqual(sorted(_collect_static_tr_keys() - en_keys), [])
 
-        self.assertEqual(sorted(visitor.keys - en_keys), [])
-
-    def test_russian_locale_covers_english_locale(self):
+    def test_every_locale_covers_english_locale(self):
         en_keys = set(_load_translation("en"))
-        ru_keys = set(_load_translation("ru"))
+        for locale in _non_english_locales():
+            with self.subTest(locale=locale):
+                locale_keys = set(_load_translation(locale))
+                self.assertEqual(sorted(en_keys - locale_keys), [])
 
-        self.assertEqual(sorted(en_keys - ru_keys), [])
-
-    def test_russian_locale_covers_static_webui_labels(self):
-        tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
-        visitor = _TrKeyVisitor()
-        visitor.visit(tree)
-
-        ru_keys = set(_load_translation("ru"))
-
-        self.assertEqual(sorted(visitor.keys - ru_keys), [])
+    def test_every_locale_covers_static_webui_labels(self):
+        static_keys = _collect_static_tr_keys()
+        for locale in _non_english_locales():
+            with self.subTest(locale=locale):
+                locale_keys = set(_load_translation(locale))
+                self.assertEqual(sorted(static_keys - locale_keys), [])
 
     def test_script_language_options_include_russian(self):
         tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
