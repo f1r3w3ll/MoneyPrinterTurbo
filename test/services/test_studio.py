@@ -31,7 +31,7 @@ class StudioTests(unittest.TestCase):
     def test_channel_cta_is_persisted_with_each_profile(self):
         from app.services import editorial
 
-        with tempfile.TemporaryDirectory() as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
             saved = editorial.save_channel_profile({
                 'name': 'Canal Atlas',
                 'niche': 'Ciência',
@@ -47,7 +47,7 @@ class StudioTests(unittest.TestCase):
     def test_channel_profile_saves_logo_and_cta_asset(self):
         from app.services import editorial
 
-        with tempfile.TemporaryDirectory() as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
             logo = editorial.save_channel_asset('canal-atlas', 'logo.png', b'png', 'logo')
             cta = editorial.save_channel_asset('canal-atlas', 'cta.jpg', b'jpg', 'cta')
             saved = editorial.save_channel_profile({
@@ -67,7 +67,7 @@ class StudioTests(unittest.TestCase):
         from app.services import studio
         from webui.studio import build_production_params
 
-        with tempfile.TemporaryDirectory() as tmp, \
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, \
              patch.object(studio, 'ROOT', Path(tmp)), \
              patch.object(studio, 'validate_settings', return_value=[]), \
              patch.object(studio, '_manager'):
@@ -80,7 +80,7 @@ class StudioTests(unittest.TestCase):
     def test_production_copies_configured_cta_assets(self):
         from app.services import studio
 
-        with tempfile.TemporaryDirectory() as tmp, \
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, \
              patch.object(studio, 'ROOT', Path(tmp)), \
              patch.object(studio, 'validate_settings', return_value=[]), \
              patch.object(studio, '_manager'):
@@ -98,7 +98,7 @@ class StudioTests(unittest.TestCase):
 
     def test_cta_validation_rejects_asset_with_wrong_media_type(self):
         from app.services.studio_settings import validate_settings
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             asset = Path(tmp) / 'cta.mp4'
             asset.write_bytes(b'not-an-image')
             settings = {
@@ -125,7 +125,7 @@ class StudioTests(unittest.TestCase):
 
     def test_channels_keep_independent_profiles_and_active_channel(self):
         from app.services import editorial
-        with tempfile.TemporaryDirectory() as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
             first = editorial.get_channel_profile()
             second = editorial.create_channel({'name': 'Canal Atlas', 'niche': 'História'})
             editorial.set_active_channel(second['id'])
@@ -140,7 +140,7 @@ class StudioTests(unittest.TestCase):
 
     def test_channel_profile_persists_and_packaging_keeps_the_promise(self):
         from app.services import editorial
-        with tempfile.TemporaryDirectory() as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(editorial, 'ROOT', Path(tmp)):
             saved = editorial.save_channel_profile({
                 'name': 'Canal Atlas', 'niche': 'História da tecnologia',
                 'audience': 'Curiosos adultos', 'promise': 'Explicar as forças por trás da tecnologia',
@@ -402,7 +402,7 @@ class StudioTests(unittest.TestCase):
         client = SimpleNamespace(images=SimpleNamespace(generate=generated))
         module = ModuleType('openai')
         module.OpenAI = lambda **ignored: client
-        with tempfile.TemporaryDirectory() as tmp, \
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, \
              patch.dict(sys.modules, {'openai': module}), \
              patch.object(image_generation.config, 'image_generation', {
                  'openai_api_key': 'test', 'dalle_model': 'gpt-image-1'
@@ -495,7 +495,7 @@ class StudioTests(unittest.TestCase):
 
     def test_process_lease_prevents_second_worker(self):
         from app.services.studio_lease import acquire, release, is_locked
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             target = Path(tmp) / 'worker.lock'
             first = acquire(target)
             try:
@@ -527,7 +527,7 @@ class StudioTests(unittest.TestCase):
 
     def test_artifacts_available_after_thumbnail_failure(self):
         from app.services import studio
-        with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
              patch.object(studio, 'validate_settings', return_value=[]), patch.object(studio, '_manager'):
             identifier = studio.submit(LongFormVideoParams(video_subject='Teste', structured_script=example_script()))
             folder = studio._folder(identifier)
@@ -537,7 +537,7 @@ class StudioTests(unittest.TestCase):
             studio._release(identifier)
     def test_drafts_persist_and_reject_path_traversal(self):
         from app.services import studio
-        with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(studio, 'ROOT', Path(tmp)):
             script = example_script().model_dump()
             script['metadata'] = {'editorial': {'selected_package': {'title': 'Título escolhido'}}}
             saved = studio.save_draft(script)
@@ -549,7 +549,7 @@ class StudioTests(unittest.TestCase):
 
     def test_delete_production_removes_its_entire_project_folder(self):
         from app.services import studio
-        with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
              patch.object(studio, 'validate_settings', return_value=[]), patch.object(studio, '_manager'):
             identifier = studio.submit(LongFormVideoParams(video_subject='Teste', structured_script=example_script()))
             folder = studio._folder(identifier)
@@ -560,7 +560,7 @@ class StudioTests(unittest.TestCase):
 
     def test_delete_production_rejects_a_queued_project(self):
         from app.services import studio
-        with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
              patch.object(studio, 'validate_settings', return_value=[]), patch.object(studio, '_manager'):
             identifier = studio.submit(LongFormVideoParams(video_subject='Teste', structured_script=example_script()))
             with self.assertRaises(ValueError):
@@ -585,7 +585,7 @@ class StudioTests(unittest.TestCase):
 
     def test_woopsocial_uploads_video_to_project_and_posts_youtube_payload(self):
         from app.services import woopsocial
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
             upload = Mock(); upload.json.return_value = {'mediaId': 'media-1'}
@@ -603,7 +603,7 @@ class StudioTests(unittest.TestCase):
 
     def test_woopsocial_uses_upload_session_for_larger_videos(self):
         from app.services import woopsocial
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
             session = Mock(); session.json.return_value = {
@@ -632,7 +632,7 @@ class StudioTests(unittest.TestCase):
 
     def test_woopsocial_retries_only_the_failed_transient_upload_part(self):
         from app.services import woopsocial
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
             session = Mock(); session.json.return_value = {
@@ -659,7 +659,7 @@ class StudioTests(unittest.TestCase):
 
     def test_woopsocial_stops_when_upload_response_has_no_media_id(self):
         from app.services import woopsocial
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
             upload = Mock(); upload.json.return_value = {'media': {}}
@@ -671,7 +671,7 @@ class StudioTests(unittest.TestCase):
 
     def test_woopsocial_rejects_an_overlong_youtube_title_before_upload(self):
         from app.services import woopsocial
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
             with patch('app.services.woopsocial.requests.post') as request:
@@ -681,7 +681,7 @@ class StudioTests(unittest.TestCase):
 
     def test_woopsocial_sends_youtube_tags(self):
         from app.services import woopsocial
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
             upload = Mock(); upload.json.return_value = {'id': 'media-1'}
@@ -694,7 +694,7 @@ class StudioTests(unittest.TestCase):
 
     def test_woopsocial_reports_validation_errors_without_creating_post(self):
         from app.services import woopsocial
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
             upload = Mock(); upload.json.return_value = {'id': 'media-1'}
@@ -707,7 +707,7 @@ class StudioTests(unittest.TestCase):
 
     def test_woopsocial_exposes_api_validation_error_details(self):
         from app.services import woopsocial
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             video = Path(tmp) / 'video.mp4'
             video.write_bytes(b'video')
             upload = Mock(); upload.json.return_value = {'id': 'media-1'}
@@ -721,7 +721,7 @@ class StudioTests(unittest.TestCase):
 
     def test_queued_production_cannot_be_resumed_twice_and_survives_restart(self):
         from app.services import studio
-        with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
              patch.object(studio, 'validate_settings', return_value=[]), patch.object(studio, '_manager') as queue:
             params = LongFormVideoParams(video_subject='Teste', structured_script=example_script())
             identifier = studio.submit(params)
@@ -737,7 +737,7 @@ class StudioTests(unittest.TestCase):
     def test_configuration_does_not_erase_or_return_secrets(self):
         from app.services import studio_settings as settings
         from app.config import config
-        with tempfile.TemporaryDirectory() as tmp, \
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, \
              patch.object(config, 'config_file', str(Path(tmp) / 'config.toml')), \
              patch.object(config, '_cfg', {}), patch.object(config, 'llm', {}), \
              patch.object(config, 'image_generation', {}), patch.object(config, 'premium_tts', {}):
@@ -752,7 +752,7 @@ class StudioTests(unittest.TestCase):
     def test_worker_failure_redacts_credentials(self):
         from app.services import studio
         from app.config import config
-        with tempfile.TemporaryDirectory() as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
              patch.object(studio, 'validate_settings', return_value=[]), patch.object(studio, '_manager'), \
              patch.dict(config.llm, {'openai': {'api_key': 'do-not-leak'}}), \
              patch('app.services.longform_pipeline.run', side_effect=RuntimeError('failed do-not-leak')):

@@ -19,8 +19,10 @@ class StudioUITest(unittest.TestCase):
         backend.resume = Mock()
         with patch.dict(sys.modules, {'app.services.studio': backend}):
             app = AppTest.from_string(
+                'import importlib\n'
                 'from webui.studio import _recovery_panel\n'
-                'from app.services import studio\n_recovery_panel(studio)', default_timeout=40).run()
+                'studio = importlib.import_module("app.services.studio")\n'
+                '_recovery_panel(studio)', default_timeout=40).run()
             app.session_state['studio_active'] = 'failed-1'
             app.button(key='delete_creation').click().run()
             backend.delete_production.assert_not_called()
@@ -32,8 +34,10 @@ class StudioUITest(unittest.TestCase):
             backend.resume.assert_not_called()
             self.assertNotIn('studio_active', app.session_state)
             app = AppTest.from_string(
+                'import importlib\n'
                 'from webui.studio import _recovery_panel\n'
-                'from app.services import studio\n_recovery_panel(studio)', default_timeout=40).run()
+                'studio = importlib.import_module("app.services.studio")\n'
+                '_recovery_panel(studio)', default_timeout=40).run()
             self.assertNotIn('resume_creation', [button.key for button in app.button])
             self.assertFalse(app.exception)
 
@@ -88,7 +92,7 @@ class StudioUITest(unittest.TestCase):
         self.assertIsNone(studio._publication_duration_error(valid_record))
 
     def test_publication_label_includes_duration_file_size_and_creation_date(self):
-        with tempfile.TemporaryDirectory() as temp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp:
             video = Path(temp) / 'video.mp4'
             video.write_bytes(b'x' * 2 * 1024 * 1024)
             created_at = datetime(2026, 9, 9, 15, 11).timestamp()
@@ -194,8 +198,10 @@ class StudioUITest(unittest.TestCase):
         backend.submit = Mock()
         with patch.dict(sys.modules, {'app.services.studio': backend}):
             app = AppTest.from_string(
+                'import importlib\n'
                 'from webui.studio import _recovery_panel\n'
-                'from app.services import studio\n_recovery_panel(studio)', default_timeout=40).run()
+                'studio = importlib.import_module("app.services.studio")\n'
+                '_recovery_panel(studio)', default_timeout=40).run()
             self.assertFalse(app.exception)
             self.assertEqual(len(app.selectbox(key='recovery_production').options), 1)
             app.button(key='resume_creation').click().run()
