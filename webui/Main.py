@@ -16,6 +16,7 @@ if root_dir not in sys.path:
     print("")
 
 from app.config import config
+from app.models.exception import LLMError
 from app.models.schema import (
     MaterialInfo,
     VideoAspect,
@@ -772,23 +773,22 @@ with left_panel:
             tr("Generate Video Script and Keywords"), key="auto_generate_script"
         ):
             with st.spinner(tr("Generating Video Script and Keywords")):
-                script = llm.generate_script(
-                    video_subject=params.video_subject,
-                    language=params.video_language,
-                    paragraph_number=params.paragraph_number,
-                    video_script_prompt=params.video_script_prompt,
-                    custom_system_prompt=params.custom_system_prompt,
-                )
-                terms = llm.generate_terms(
-                    params.video_subject,
-                    script,
-                    amount=8 if params.match_materials_to_script else 5,
-                    match_script_order=params.match_materials_to_script,
-                )
-                if "Error: " in script:
-                    st.error(tr(script))
-                elif "Error: " in terms:
-                    st.error(tr(terms))
+                try:
+                    script = llm.generate_script(
+                        video_subject=params.video_subject,
+                        language=params.video_language,
+                        paragraph_number=params.paragraph_number,
+                        video_script_prompt=params.video_script_prompt,
+                        custom_system_prompt=params.custom_system_prompt,
+                    )
+                    terms = llm.generate_terms(
+                        params.video_subject,
+                        script,
+                        amount=8 if params.match_materials_to_script else 5,
+                        match_script_order=params.match_materials_to_script,
+                    )
+                except LLMError as e:
+                    st.error(tr(str(e)))
                 else:
                     st.session_state["video_script"] = script
                     st.session_state["video_terms"] = ", ".join(terms)
@@ -801,14 +801,15 @@ with left_panel:
                 st.stop()
 
             with st.spinner(tr("Generating Video Keywords")):
-                terms = llm.generate_terms(
-                    params.video_subject,
-                    params.video_script,
-                    amount=8 if params.match_materials_to_script else 5,
-                    match_script_order=params.match_materials_to_script,
-                )
-                if "Error: " in terms:
-                    st.error(tr(terms))
+                try:
+                    terms = llm.generate_terms(
+                        params.video_subject,
+                        params.video_script,
+                        amount=8 if params.match_materials_to_script else 5,
+                        match_script_order=params.match_materials_to_script,
+                    )
+                except LLMError as e:
+                    st.error(tr(str(e)))
                 else:
                     st.session_state["video_terms"] = ", ".join(terms)
 

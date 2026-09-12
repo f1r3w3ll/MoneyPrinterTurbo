@@ -112,7 +112,7 @@ class VideoParams(BaseModel):
     custom_system_prompt: str = Field(default="", max_length=8000)
 
 
-class SubtitleRequest(BaseModel):
+class AudioSubtitleParams(BaseModel):
     video_script: str
     video_language: Optional[str] = ""
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
@@ -121,6 +121,10 @@ class SubtitleRequest(BaseModel):
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
+    video_source: Optional[str] = "local"
+
+
+class SubtitleRequest(AudioSubtitleParams):
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
@@ -129,23 +133,14 @@ class SubtitleRequest(BaseModel):
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5
-    video_source: Optional[str] = "local"
     subtitle_enabled: Optional[str] = "true"
 
 
-class AudioRequest(BaseModel):
-    video_script: str
-    video_language: Optional[str] = ""
-    voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
-    voice_volume: Optional[float] = 1.0
-    voice_rate: Optional[float] = 1.2
-    bgm_type: Optional[str] = "random"
-    bgm_file: Optional[str] = ""
-    bgm_volume: Optional[float] = 0.2
-    video_source: Optional[str] = "local"
+class AudioRequest(AudioSubtitleParams):
+    pass
 
 
-class VideoScriptParams:
+class VideoScriptParams(BaseModel):
     """
     {
       "video_subject": "春天的花海",
@@ -163,7 +158,7 @@ class VideoScriptParams:
     custom_system_prompt: str = Field(default="", max_length=8000)
 
 
-class VideoTermsParams:
+class VideoTermsParams(BaseModel):
     """
     {
       "video_subject": "",
@@ -181,7 +176,7 @@ class VideoTermsParams:
     match_materials_to_script: bool = False
 
 
-class VideoSocialMetadataParams:
+class VideoSocialMetadataParams(BaseModel):
     """
     {
       "video_subject": "A day in Shanghai",

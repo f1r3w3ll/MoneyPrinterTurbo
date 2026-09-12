@@ -26,3 +26,9 @@ class HttpException(Exception):
 
 class FileNotFoundException(Exception):
     pass
+
+
+class LLMError(RuntimeError):
+    """Raised when an LLM provider call fails after all retries are exhausted."""
+
+    pass

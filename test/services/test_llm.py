@@ -11,6 +11,7 @@ from pydantic import ValidationError
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import config
+from app.models.exception import LLMError
 from app.models.schema import VideoScriptRequest, VideoSocialMetadataRequest
 from app.services import llm
 
@@ -188,10 +189,10 @@ class TestLiteLLMProvider(unittest.TestCase):
     def test_litellm_provider_requires_model_name(self):
         self._use_litellm_provider(model_name="")
 
-        result = llm._generate_response("test")
+        with self.assertRaises(LLMError) as ctx:
+            llm._generate_response("test")
 
-        self.assertIn("Error:", result)
-        self.assertIn("model_name is not set", result)
+        self.assertIn("model_name is not set", str(ctx.exception))
 
     def test_litellm_provider_handles_empty_response(self):
         self._use_litellm_provider()
@@ -201,10 +202,10 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
 
         with patch.dict(sys.modules, {"litellm": fake_litellm}):
-            result = llm._generate_response("test")
+            with self.assertRaises(LLMError) as ctx:
+                llm._generate_response("test")
 
-        self.assertIn("Error:", result)
-        self.assertIn("returned empty response", result)
+        self.assertIn("returned empty response", str(ctx.exception))
 
     def test_litellm_provider_handles_empty_message(self):
         """
@@ -221,10 +222,10 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
 
         with patch.dict(sys.modules, {"litellm": fake_litellm}):
-            result = llm._generate_response("test")
+            with self.assertRaises(LLMError) as ctx:
+                llm._generate_response("test")
 
-        self.assertIn("Error:", result)
-        self.assertIn("returned empty message", result)
+        self.assertIn("returned empty message", str(ctx.exception))
 
     def test_sanitize_error_message_redacts_url_credentials_and_query_tokens(self):
         message = (
@@ -247,8 +248,8 @@ class TestLiteLLMProvider(unittest.TestCase):
     def test_openai_provider_error_redacts_embedded_base_url_credentials(self):
         """
         自定义 OpenAI-compatible base_url 可能包含代理网关的 user:pass。
-        SDK 抛错时常会把 URL 带回异常信息，这里验证最终返回给 WebUI/API 的
-        `Error:` 文案不会泄露这些凭据。
+        SDK 抛错时常会把 URL 带回异常信息，这里验证最终抛给 WebUI/API 的
+        LLMError 文案不会泄露这些凭据。
         """
         config.app["llm_provider"] = "groq"
         config.app["groq_api_key"] = "groq-key"
@@ -268,14 +269,14 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
 
         with patch.object(llm, "OpenAI", return_value=fake_client):
-            result = llm._generate_response("test")
+            with self.assertRaises(LLMError) as ctx:
+                llm._generate_response("test")
 
-        self.assertIn("Error:", result)
-        self.assertIn("https://***:***@proxy.example.com", result)
-        self.assertIn("access_token=***", result)
-        self.assertNotIn("myuser", result)
-        self.assertNotIn("mypassword", result)
-        self.assertNotIn("secret-token", result)
+        self.assertIn("https://***:***@proxy.example.com", str(ctx.exception))
+        self.assertIn("access_token=***", str(ctx.exception))
+        self.assertNotIn("myuser", str(ctx.exception))
+        self.assertNotIn("mypassword", str(ctx.exception))
+        self.assertNotIn("secret-token", str(ctx.exception))
 
     def test_openai_provider_still_uses_existing_path(self):
         config.app["llm_provider"] = "openai"
@@ -283,11 +284,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app["openai_base_url"] = "https://api.openai.com/v1"
         config.app["openai_model_name"] = "gpt-4o-mini"
 
-        result = llm._generate_response("test")
+        with self.assertRaises(LLMError) as ctx:
+            llm._generate_response("test")
 
-        self.assertIn("Error:", result)
-        self.assertIn("api_key is not set", result)
-        self.assertNotIn("litellm", result.lower())
+        self.assertIn("api_key is not set", str(ctx.exception))
+        self.assertNotIn("litellm", str(ctx.exception).lower())
 
     def _use_qwen_provider(self):
         config.app["llm_provider"] = "qwen"
@@ -352,11 +353,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         response = {"output": {"text": None, "choices": [{"message": {"content": None}}]}}
 
         with self._patch_dashscope_generation(response):
-            result = llm._generate_response("Say hello")
+            with self.assertRaises(LLMError) as ctx:
+                llm._generate_response("Say hello")
 
-        self.assertIn("Error:", result)
-        self.assertIn("returned empty text content", result)
-        self.assertNotIn("NoneType", result)
+        self.assertIn("returned empty text content", str(ctx.exception))
+        self.assertNotIn("NoneType", str(ctx.exception))
 
     def test_qwen_provider_reports_empty_choices(self):
         """Qwen chat 响应 choices 为空时应返回明确错误。"""
@@ -364,11 +365,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         response = {"output": {"text": None, "choices": []}}
 
         with self._patch_dashscope_generation(response):
-            result = llm._generate_response("Say hello")
+            with self.assertRaises(LLMError) as ctx:
+                llm._generate_response("Say hello")
 
-        self.assertIn("Error:", result)
-        self.assertIn("returned empty choices", result)
-        self.assertNotIn("NoneType", result)
+        self.assertIn("returned empty choices", str(ctx.exception))
+        self.assertNotIn("NoneType", str(ctx.exception))
 
     def test_aihubmix_provider_uses_openai_compatible_client(self):
         """
@@ -497,11 +498,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app["grok_base_url"] = "https://api.x.ai/v1"
         config.app["grok_model_name"] = "grok-4.3"
 
-        result = llm._generate_response("test")
+        with self.assertRaises(LLMError) as ctx:
+            llm._generate_response("test")
 
-        self.assertIn("Error:", result)
-        self.assertIn("api_key is not set", result)
-        self.assertNotIn("litellm", result.lower())
+        self.assertIn("api_key is not set", str(ctx.exception))
+        self.assertNotIn("litellm", str(ctx.exception).lower())
 
     def test_groq_provider_requires_api_key(self):
         config.app["llm_provider"] = "groq"
@@ -509,11 +510,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app["groq_base_url"] = "https://api.groq.com/openai/v1"
         config.app["groq_model_name"] = "llama-3.3-70b-versatile"
 
-        result = llm._generate_response("test")
+        with self.assertRaises(LLMError) as ctx:
+            llm._generate_response("test")
 
-        self.assertIn("Error:", result)
-        self.assertIn("api_key is not set", result)
-        self.assertNotIn("litellm", result.lower())
+        self.assertIn("api_key is not set", str(ctx.exception))
+        self.assertNotIn("litellm", str(ctx.exception).lower())
 
     def test_groq_provider_uses_default_base_url(self):
         config.app["llm_provider"] = "groq"
@@ -725,10 +726,10 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app["llm_provider"] = "g4f"
         config.app["enable_g4f"] = False
 
-        result = llm._generate_response("test")
+        with self.assertRaises(LLMError) as ctx:
+            llm._generate_response("test")
 
-        self.assertIn("Error:", result)
-        self.assertIn("g4f provider is disabled", result)
+        self.assertIn("g4f provider is disabled", str(ctx.exception))
 
     def test_g4f_provider_uses_lazy_import_after_opt_in(self):
         config.app["llm_provider"] = "g4f"
@@ -751,10 +752,10 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app["g4f_model_name"] = "gpt-3.5-turbo"
 
         with patch.dict(sys.modules, {"g4f": None}):
-            result = llm._generate_response("test")
+            with self.assertRaises(LLMError) as ctx:
+                llm._generate_response("test")
 
-        self.assertIn("Error:", result)
-        self.assertIn("g4f package is not installed by default", result)
+        self.assertIn("g4f package is not installed by default", str(ctx.exception))
 
 
 class TestRuntimeEnvironmentDetection(unittest.TestCase):
@@ -911,7 +912,7 @@ class TestSocialMetadata(unittest.TestCase):
 
     def test_generate_social_metadata_falls_back_to_generic_hashtags(self):
         with patch.object(
-            llm, "_generate_response", return_value="Error: api_key is not set"
+            llm, "_generate_response", side_effect=LLMError("api_key is not set")
         ):
             result = llm.generate_social_metadata(
                 video_subject="Coffee tips",
@@ -923,6 +924,31 @@ class TestSocialMetadata(unittest.TestCase):
         self.assertEqual(result["caption"], "Save these three coffee tips.")
         self.assertEqual(len(result["hashtags"]), 8)
         self.assertEqual(result["hashtags"][0], "#shorts")
+
+    def test_generate_script_raises_llm_error_after_retries(self):
+        with patch.object(
+            llm, "_generate_response", side_effect=LLMError("api_key is not set")
+        ):
+            with self.assertRaises(LLMError):
+                llm.generate_script(video_subject="Coffee tips")
+
+    def test_generate_terms_raises_llm_error_instead_of_returning_error_string(self):
+        with patch.object(
+            llm, "_generate_response", side_effect=LLMError("api_key is not set")
+        ):
+            with self.assertRaises(LLMError):
+                llm.generate_terms(
+                    video_subject="Coffee tips", video_script="Save these tips."
+                )
+
+    def test_generate_terms_returns_list_of_strings_on_success(self):
+        with patch.object(
+            llm, "_generate_response", return_value='["coffee", "espresso"]'
+        ):
+            terms = llm.generate_terms(
+                video_subject="Coffee tips", video_script="Save these tips."
+            )
+        self.assertEqual(terms, ["coffee", "espresso"])
 
     def test_request_model_defaults_to_auto_language_tiktok(self):
         body = VideoSocialMetadataRequest(video_subject="Test")

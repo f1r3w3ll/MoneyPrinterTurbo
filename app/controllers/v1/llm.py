@@ -1,6 +1,7 @@
 from fastapi import Request
 
 from app.controllers.v1.base import new_router
+from app.models.exception import HttpException, LLMError
 from app.models.schema import (
     VideoScriptRequest,
     VideoScriptResponse,
@@ -23,13 +24,18 @@ router = new_router()
     summary="Create a script for the video",
 )
 def generate_video_script(request: Request, body: VideoScriptRequest):
-    video_script = llm.generate_script(
-        video_subject=body.video_subject,
-        language=body.video_language,
-        paragraph_number=body.paragraph_number,
-        video_script_prompt=body.video_script_prompt,
-        custom_system_prompt=body.custom_system_prompt,
-    )
+    try:
+        video_script = llm.generate_script(
+            video_subject=body.video_subject,
+            language=body.video_language,
+            paragraph_number=body.paragraph_number,
+            video_script_prompt=body.video_script_prompt,
+            custom_system_prompt=body.custom_system_prompt,
+        )
+    except LLMError as e:
+        raise HttpException(
+            task_id="", status_code=500, message=f"failed to generate script: {e}"
+        )
     response = {"video_script": video_script}
     return utils.get_response(200, response)
 
@@ -40,12 +46,17 @@ def generate_video_script(request: Request, body: VideoScriptRequest):
     summary="Generate video terms based on the video script",
 )
 def generate_video_terms(request: Request, body: VideoTermsRequest):
-    video_terms = llm.generate_terms(
-        video_subject=body.video_subject,
-        video_script=body.video_script,
-        amount=body.amount,
-        match_script_order=body.match_materials_to_script,
-    )
+    try:
+        video_terms = llm.generate_terms(
+            video_subject=body.video_subject,
+            video_script=body.video_script,
+            amount=body.amount,
+            match_script_order=body.match_materials_to_script,
+        )
+    except LLMError as e:
+        raise HttpException(
+            task_id="", status_code=500, message=f"failed to generate terms: {e}"
+        )
     response = {"video_terms": video_terms}
     return utils.get_response(200, response)
 

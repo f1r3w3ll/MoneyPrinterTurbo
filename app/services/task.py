@@ -7,6 +7,7 @@ from loguru import logger
 
 from app.config import config
 from app.models import const
+from app.models.exception import LLMError
 from app.models.schema import VideoConcatMode, VideoParams
 from app.services import llm, material, subtitle, video, voice, upload_post
 from app.services import state as sm
@@ -17,13 +18,17 @@ def generate_script(task_id, params):
     logger.info("\n\n## generating video script")
     video_script = params.video_script.strip()
     if not video_script:
-        video_script = llm.generate_script(
-            video_subject=params.video_subject,
-            language=params.video_language,
-            paragraph_number=params.paragraph_number,
-            video_script_prompt=params.video_script_prompt,
-            custom_system_prompt=params.custom_system_prompt,
-        )
+        try:
+            video_script = llm.generate_script(
+                video_subject=params.video_subject,
+                language=params.video_language,
+                paragraph_number=params.paragraph_number,
+                video_script_prompt=params.video_script_prompt,
+                custom_system_prompt=params.custom_system_prompt,
+            )
+        except LLMError as e:
+            logger.error(f"failed to generate video script: {e}")
+            video_script = ""
     else:
         logger.debug(f"video script: \n{video_script}")
 
@@ -42,12 +47,16 @@ def generate_terms(task_id, params, video_script):
         # 开启素材按文案顺序匹配后，关键词本身也必须按脚本叙事顺序生成；
         # 否则后续即使顺序下载和顺序拼接，也只能复用一组全局主题词，
         # 无法改善“后面内容的画面提前出现”的问题。
-        video_terms = llm.generate_terms(
-            video_subject=params.video_subject,
-            video_script=video_script,
-            amount=8 if params.match_materials_to_script else 5,
-            match_script_order=params.match_materials_to_script,
-        )
+        try:
+            video_terms = llm.generate_terms(
+                video_subject=params.video_subject,
+                video_script=video_script,
+                amount=8 if params.match_materials_to_script else 5,
+                match_script_order=params.match_materials_to_script,
+            )
+        except LLMError as e:
+            logger.error(f"failed to generate video terms: {e}")
+            video_terms = None
     else:
         if isinstance(video_terms, str):
             video_terms = [term.strip() for term in re.split(r"[,，]", video_terms)]
@@ -317,7 +326,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 1. Generate script
     video_script = generate_script(task_id, params)
-    if not video_script or "Error: " in video_script:
+    if not video_script:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
 

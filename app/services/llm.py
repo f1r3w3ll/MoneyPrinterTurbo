@@ -9,6 +9,7 @@ from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
 
 from app.config import config
+from app.models.exception import LLMError
 
 _max_retries = 5
 _DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
@@ -585,7 +586,7 @@ def _generate_response(prompt: str) -> str:
 
         return _normalize_text_response(content, llm_provider)
     except Exception as e:
-        return f"Error: {_sanitize_error_message(e)}"
+        raise LLMError(_sanitize_error_message(e)) from e
 
 
 def _limit_script_text(text: str | None, max_length: int, field_name: str) -> str:
@@ -721,12 +722,14 @@ def generate_script(
         except Exception as e:
             logger.error(f"failed to generate script: {e}")
 
-        if i < _max_retries:
+        if i < _max_retries - 1:
             logger.warning(f"failed to generate video script, trying again... {i + 1}")
-    if "Error: " in final_script:
-        logger.error(f"failed to generate video script: {final_script}")
-    else:
-        logger.success(f"completed: \n{final_script}")
+
+    if not final_script:
+        raise LLMError(
+            f"failed to generate video script after {_max_retries} attempts"
+        )
+    logger.success(f"completed: \n{final_script}")
     return final_script.strip()
 
 
@@ -815,22 +818,23 @@ Please note that you must use English for generating video search terms; Chinese
     )
 
     search_terms = []
-    response = ""
+    last_error = ""
     for i in range(_max_retries):
+        response = ""
         try:
             response = _generate_response(prompt)
-            if "Error: " in response:
-                logger.error(f"failed to generate video script: {response}")
-                return response
             search_terms = json.loads(_strip_code_fence(response))
             if not isinstance(search_terms, list) or not all(
                 isinstance(term, str) for term in search_terms
             ):
                 logger.error("response is not a list of strings.")
-                continue
-
+                search_terms = []
+        except LLMError as e:
+            last_error = str(e)
+            logger.error(f"failed to generate video terms: {last_error}")
         except Exception as e:
-            logger.warning(f"failed to generate video terms: {str(e)}")
+            last_error = str(e)
+            logger.warning(f"failed to generate video terms: {last_error}")
             if response:
                 match = re.search(r"\[.*]", response, re.DOTALL)
                 if match:
@@ -844,9 +848,13 @@ Please note that you must use English for generating video search terms; Chinese
 
         if search_terms and len(search_terms) > 0:
             break
-        if i < _max_retries:
+        if i < _max_retries - 1:
             logger.warning(f"failed to generate video terms, trying again... {i + 1}")
 
+    if not search_terms:
+        raise LLMError(
+            last_error or f"failed to generate video terms after {_max_retries} attempts"
+        )
     logger.success(f"completed: \n{search_terms}")
     return search_terms
 
@@ -1099,12 +1107,12 @@ def generate_social_metadata(
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt)
-            if isinstance(response, str) and "Error: " in response:
-                logger.error(f"failed to generate social metadata: {response}")
-                break
             metadata = _parse_social_metadata(response, platform)
             logger.success(f"completed: \n{metadata}")
             return metadata
+        except LLMError as e:
+            logger.error(f"failed to generate social metadata: {e}")
+            break
         except Exception as e:
             logger.warning(f"failed to parse social metadata: {str(e)}")
 
