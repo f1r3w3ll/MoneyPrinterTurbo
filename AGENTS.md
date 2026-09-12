@@ -487,3 +487,24 @@ O gerador original foi preservado.
   seguindo o padrão de `webui/studio.py`. Seleção completa do CI: 96 testes
   OK. `TemporaryDirectory` usa `ignore_cleanup_errors=True` para evitar falha
   de limpeza no Windows com arquivos ainda abertos por leitores.
+
+## Manutenção de documentação e dependências — 12/09/2026
+
+- Divergências do registro inicial revalidadas: checkpoint já usa `os.replace`
+  (sem janela sem checkpoint); rotas novas executam até thumbnail; DALL-E tem
+  fallback de chave; `anthropic`, `elevenlabs` e `replicate` constam em
+  `requirements.txt`; g4f é extra opcional do pyproject com import tardio e
+  guarda explícita em `llm.py` — a exclusão do `requirements.txt` é intencional.
+- `README-ar.md` deixou de instruir instalação de ImageMagick (legado desde a
+  migração para MoviePy 2/Pillow) e seu troubleshooting agora orienta atualizar
+  o código; numeração das etapas de instalação ajustada.
+- Os exemplos de monitoramento em `LONGFORM_README.md` e
+  `LONGFORM_VIDEO_DOCUMENTATION.md` tratavam HTTP 404 de checkpoint como
+  conclusão e citavam um campo `num_completed_scenes` inexistente. Agora
+  acompanham `status`/`current_phase`/`progress` até `completed`, `failed` ou
+  `interrupted`, alinhados ao contrato real de `GET /checkpoint-status/{task_id}`
+  e a `docs/STUDIO.md`: ausência de checkpoint ou 404 nunca significa sucesso.
+- Midjourney, Play.ht e Murf seguem fora da interface por decisão de escopo; a
+  seleção de TTS premium ocorre pelo prefixo `elevenlabs:<voice_id>` em
+  `voice_name`, com validação em `studio_settings.py`, sem necessidade de
+  encaminhar `premium_tts_provider` a `voice.tts`.

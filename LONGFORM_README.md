@@ -269,13 +269,21 @@ video_resp = requests.post(f"{API}/longform-videos", json={
 })
 task_id = video_resp.json()['data']['task_id']
 
-# 4. Monitorar
+# 4. Monitorar — ausência de checkpoint ou HTTP 404 NUNCA significa sucesso;
+#    acompanhe o status real da produção até ela terminar
 while True:
     status = requests.get(f"{API}/checkpoint-status/{task_id}")
     if status.status_code == 404:
+        print("Produção não encontrada.")
+        break
+    data = status.json()['data']
+    print(f"Status: {data['status']} | Fase: {data['current_phase']} | Progresso: {data['progress']}%")
+    if data['status'] == 'completed':
         print("Vídeo completo!")
         break
-    print(f"Progresso: {status.json()['data']}")
+    if data['status'] in ('failed', 'interrupted'):
+        print(f"Produção {data['status']}: {data['error']}")
+        break
     time.sleep(30)
 ```
 

@@ -187,33 +187,7 @@ pip install -r requirements.txt
 - يُثبّت `uv.lock` البيئة المُحدّدة، لذا يُنصح بـ `uv sync --frozen` افتراضياً.
 - يُحتفظ بـ `requirements.txt` فقط للتثبيت القديم المعتمد على `pip`.
 
-#### ② تثبيت ImageMagick
-
-###### Windows:
-
-- نزّل من https://imagemagick.org/script/download.php واختر نسخة Windows، وتأكد من اختيار نسخة **المكتبة الساكنة (static library)**، مثل ImageMagick-7.1.1-32-Q16-x64-**static**.exe
-- ثبّت ImageMagick الذي نزّلته، **ولا تغيّر مسار التثبيت**
-- عدّل ملف الإعدادات `config.toml`، واضبط `imagemagick_path` على مسار التثبيت الفعلي لديك
-
-###### MacOS:
-
-```shell
-brew install imagemagick
-```
-
-###### Ubuntu
-
-```shell
-sudo apt-get install imagemagick
-```
-
-###### CentOS
-
-```shell
-sudo yum install ImageMagick
-```
-
-#### ③ تشغيل واجهة الويب 🌐
+#### ② تشغيل واجهة الويب 🌐
 
 لاحظ أنك بحاجة لتنفيذ الأوامر التالية في `المجلد الجذر` لمشروع MoneyPrinterTurbo
 
@@ -353,23 +327,9 @@ ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
 
 ### ❓ImageMagick is not installed on your computer
 
-[issue 33](https://github.com/harry0703/MoneyPrinterTurbo/issues/33)
-
-1. اتبع `عنوان التنزيل` الموجود في `الإعداد النموذجي`
-   لتثبيت https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-30-Q16-x64-static.exe (باستخدام المكتبة الساكنة)
-2. لا تثبّت في مسار يحتوي على أحرف صينية لتجنّب مشكلات غير متوقّعة
-
-[issue 54](https://github.com/harry0703/MoneyPrinterTurbo/issues/54#issuecomment-2017842022)
-
-لأنظمة Linux، يمكنك تثبيته يدوياً، راجع https://cn.linux-console.net/?p=16978
-
-شكراً لـ [@wangwenqiao666](https://github.com/wangwenqiao666) على بحثه واستكشافه
-
-### ❓ImageMagick's security policy prevents operations related to temporary file @/tmp/tmpur5hyyto.txt
-
-يمكنك إيجاد هذه السياسات في ملف إعدادات ImageMagick policy.xml.
-يقع هذا الملف عادةً في /etc/ImageMagick-`X`/ أو موقع مشابه في مجلد تثبيت ImageMagick.
-عدّل المُدخل الذي يحتوي على `pattern="@"`، وغيّر `rights="none"` إلى `rights="read|write"` للسماح بعمليات القراءة والكتابة على الملفات.
+> **هذا الخطأ لم يعد سارياً على الإصدار الحالي.**
+>
+> منذ ترقية المشروع إلى **MoviePy 2.x**، أصبح عرض الترجمة يستخدم **Pillow** بدلاً من ImageMagick، لست بحاجة لتثبيت ImageMagick. إذا رأيت هذا الخطأ، فربما تُشغّل إصداراً أقدم من الكود — نفّذ `git pull` للتحديث، أو استخدم `update.bat` على Windows.
 
 ### ❓OSError: [Errno 24] Too many open files
 
