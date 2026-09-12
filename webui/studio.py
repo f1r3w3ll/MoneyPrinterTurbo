@@ -909,6 +909,19 @@ Do not place headings inside any field. Use the supplied scene timing for chapte
                                privacy, scheduled_at, tags=tags, progress=report_upload)
             upload_progress.progress(1.0, text='Publicação enviada à WoopSocial.')
             st.success('Publicação enviada à WoopSocial.')
+            try:
+                from app.services import studio as studio_service
+                pub_record = {
+                    'published_at': datetime.now().astimezone().isoformat(),
+                    'title': title, 'description': description, 'tags': tags,
+                    'privacy': privacy, 'scheduled_for': scheduled_at,
+                    'project_id': project['id'], 'project_name': project.get('name'),
+                    'account_id': account['id'],
+                }
+                pub_file = studio_service._folder(selected['id']) / 'publication.json'
+                pub_file.write_text(json.dumps(pub_record, ensure_ascii=False, indent=2), encoding='utf-8')
+            except Exception as exc:
+                st.warning(f'Publicação enviada, mas os metadados não foram salvos: {redact(exc)}')
         except Exception as exc:
             st.error(redact(exc))
 

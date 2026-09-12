@@ -524,3 +524,18 @@ O gerador original foi preservado.
   os campos existiam; agora usa `elif`, preservando a lista completa.
 - Seleção completa do CI: 96 testes OK. Sem necessidade de reiniciar o Streamlit:
   as mudanças afetam apenas caminhos de erro inalcançáveis pela interface.
+
+## Arquivamento de publicados — 12/09/2026
+
+- Produções concluídas e publicadas são arquivadas fora do aplicativo em
+  `D:/MoneyPrinterturbo/PUBLICADOS/<slug>/`, com `video.mp4` (versão final com
+  CTA), `thumbnail.jpg`, `roteiro.json` e `descricao-youtube.txt`. A pasta da
+  produção em `storage/studio/productions` é então removida por inteiro
+  (áudios, imagens, MP4 intermediário, checkpoints e locks), liberando disco.
+  O Estúdio deixa de listar a produção arquivada.
+- A aba Publicação agora grava `publication.json` na pasta da produção após o
+  envio à WoopSocial (título, descrição, tags, privacidade, projeto, conta e
+  data/hora), para que a descrição exata publicada não dependa da sessão do
+  navegador. Falha ao gravar não bloqueia a publicação (apenas avisa).
+- Requer restart do Streamlit para produções futuras passarem a gravar
+  `publication.json`.
