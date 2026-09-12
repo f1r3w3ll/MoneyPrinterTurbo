@@ -304,7 +304,7 @@ class TestVideoService(unittest.TestCase):
                 )
             return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             clip_file = os.path.join(temp_dir, "clip.mp4")
             output_file = os.path.join(temp_dir, "combined.mp4")
             Path(clip_file).write_bytes(b"fake")
@@ -341,7 +341,7 @@ class TestVideoService(unittest.TestCase):
                 stderr=f"{codec} cannot write output",
             )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             clip_file = os.path.join(temp_dir, "clip.mp4")
             output_file = os.path.join(temp_dir, "combined.mp4")
             Path(clip_file).write_bytes(b"fake")
@@ -425,7 +425,7 @@ class TestVideoService(unittest.TestCase):
             def close(self):
                 pass
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             combined_video_path = os.path.join(temp_dir, "combined.mp4")
             audio_file = os.path.join(temp_dir, "audio.mp3")
 
@@ -475,7 +475,7 @@ class TestVideoService(unittest.TestCase):
         def _open_fake_video_clip(video_path):
             return _FakeVideoClip(video_durations[video_path])
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             combined_video_path = os.path.join(temp_dir, "combined.mp4")
 
             with patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()):

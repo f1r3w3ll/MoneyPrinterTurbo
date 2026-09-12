@@ -10,7 +10,7 @@ from app.services import studio_storage
 
 class StudioStorageTests(unittest.TestCase):
     def test_write_json_uses_an_exclusive_temporary_name(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             target = Path(tmp) / 'production.json'
             original_replace = os.replace
             seen = []
@@ -26,7 +26,7 @@ class StudioStorageTests(unittest.TestCase):
             self.assertEqual(json.loads(target.read_text(encoding='utf-8')), {'status': 'running'})
 
     def test_write_json_retries_a_transient_windows_lock(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             target = Path(tmp) / 'production.json'
             original_replace = os.replace
             attempts = 0

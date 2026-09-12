@@ -762,7 +762,7 @@ class TestRuntimeEnvironmentDetection(unittest.TestCase):
         """
         普通 Linux 也有 /proc/1/cgroup，不能因为文件存在就判定为容器。
         """
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
             cgroup_path = Path(tmp_dir) / "cgroup"
             cgroup_path.write_text("0::/init.scope\n", encoding="utf-8")
 
@@ -775,7 +775,7 @@ class TestRuntimeEnvironmentDetection(unittest.TestCase):
             )
 
     def test_container_detection_accepts_dockerenv_marker(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
             dockerenv_path = Path(tmp_dir) / ".dockerenv"
             dockerenv_path.write_text("", encoding="utf-8")
 
@@ -788,7 +788,7 @@ class TestRuntimeEnvironmentDetection(unittest.TestCase):
             )
 
     def test_container_detection_accepts_cgroup_container_marker(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
             cgroup_path = Path(tmp_dir) / "cgroup"
             cgroup_path.write_text(
                 "0::/system.slice/docker-abcdef.scope\n",
@@ -804,7 +804,7 @@ class TestRuntimeEnvironmentDetection(unittest.TestCase):
             )
 
     def test_container_gateway_ip_decodes_default_route(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
             route_path = Path(tmp_dir) / "route"
             route_path.write_text(
                 "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n"
@@ -818,7 +818,7 @@ class TestRuntimeEnvironmentDetection(unittest.TestCase):
             )
 
     def test_container_gateway_ip_ignores_missing_default_route(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
             route_path = Path(tmp_dir) / "route"
             route_path.write_text(
                 "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n"

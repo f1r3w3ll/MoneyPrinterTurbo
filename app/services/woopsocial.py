@@ -170,7 +170,7 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
     if not media_id:
         raise ValueError('A WoopSocial não devolveu o identificador da mídia enviada.')
     schedule = {'type': 'PUBLISH_NOW'} if privacy != 'scheduled' else {'type': 'SCHEDULE_FOR_LATER', 'scheduledFor': scheduled_at}
-    privacy_value = 'private' if privacy == 'scheduled' else privacy
+    privacy_value = 'public' if privacy == 'scheduled' else privacy
     youtube_target = {'platform': 'YOUTUBE', 'socialAccountId': account_id, 'title': title, 'privacy': privacy_value}
     if tags:
         youtube_target['tags'] = [str(tag).strip() for tag in tags if str(tag).strip()]

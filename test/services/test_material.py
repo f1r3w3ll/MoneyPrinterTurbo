@@ -104,7 +104,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
             def close(self):
                 return None
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             with patch(
                 "app.services.material.requests.get", return_value=fake_response
             ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):

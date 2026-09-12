@@ -27,7 +27,7 @@ class TestSubtitleService(unittest.TestCase):
             "第二段\n\n"
         )
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
             subtitle_file = Path(tmp_dir) / "subtitle.srt"
             subtitle_file.write_text(original_srt, encoding="utf-8")
 
@@ -58,7 +58,7 @@ class TestSubtitleService(unittest.TestCase):
             "World"
         )
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
             subtitle_file = Path(tmp_dir) / "subtitle.srt"
             subtitle_file.write_text(srt_without_trailing_blank, encoding="utf-8")
 
@@ -79,7 +79,7 @@ class TestSubtitleService(unittest.TestCase):
             "World\n\n"
         )
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
             subtitle_file = Path(tmp_dir) / "subtitle.srt"
             subtitle_file.write_text(srt_with_trailing_blank, encoding="utf-8")
 

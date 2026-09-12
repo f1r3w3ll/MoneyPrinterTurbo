@@ -31,7 +31,7 @@ class StudioRenderTest(unittest.TestCase):
         image.save(target)
 
     def test_animated_image_changes_frame_without_changing_scene_duration(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             image, audio = root / 'scene.png', root / 'scene.wav'
             self._asymmetric_image(image)
@@ -48,7 +48,7 @@ class StudioRenderTest(unittest.TestCase):
                 self.assertGreater(np.abs(first.astype(int) - last.astype(int)).mean(), 2.)
 
     def test_intro_uses_stronger_motion_than_regular_scene(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             image, first_audio, second_audio = root / 'scene.png', root / 'first.wav', root / 'second.wav'
             self._asymmetric_image(image)
@@ -66,7 +66,7 @@ class StudioRenderTest(unittest.TestCase):
                 self.assertGreater(intro_motion, regular_motion + 1.)
 
     def test_fade_transition_dims_scene_end_before_the_next_scene(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             image, audio = root / 'scene.png', root / 'scene.wav'
             self._asymmetric_image(image)
@@ -81,7 +81,7 @@ class StudioRenderTest(unittest.TestCase):
                 ending_luminance = clip.get_frame(.98).mean()
                 self.assertLess(ending_luminance, middle_luminance * .75)
     def test_complete_production_has_video_thumbnail_script_and_subtitles(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             def speech(scene, params, target):
                 target = Path(target).with_suffix('.wav')

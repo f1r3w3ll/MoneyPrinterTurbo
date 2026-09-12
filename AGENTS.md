@@ -539,3 +539,27 @@ O gerador original foi preservado.
   navegador. Falha ao gravar não bloqueia a publicação (apenas avisa).
 - Requer restart do Streamlit para produções futuras passarem a gravar
   `publication.json`.
+
+## Publicação agendada e arquivamento — 12/09/2026
+
+- Publicações agendadas (`privacy='scheduled'`) eram enviadas à WoopSocial com
+  `privacy: private`, e o vídeo ia ao ar como privado. Agora o payload usa
+  `privacy: public` com `SCHEDULE_FOR_LATER`: quando a data chega, o vídeo
+  torna-se público.
+- Nova ação `archive_production` em `studio.py` (botão "Arquivar como publicado"
+  na aba Publicação, com confirmação): move `video.mp4`, `thumbnail.jpg`,
+  `roteiro.json` e `descricao-youtube.txt` (montada a partir de
+  `publication.json`) para `D:/MoneyPrinterturbo/PUBLICADOS/<id>/` e remove a
+  pasta da produção. Recusa produções em fila ou em execução. O destino padrão
+  é `Path(config.root_dir).parent / 'PUBLICADOS'`.
+- `delete_production` e o arquivamento usam `_rmtree_production`, que repete a
+  remoção após 1s em `OSError` (Windows às vezes recusa `rmdir` por arquivo
+  ainda solto, WinError 145).
+- Todos os `TemporaryDirectory` dos testes usam `ignore_cleanup_errors=True`
+  (flake de teardown no Windows com arquivo ainda aberto por leitores).
+- Falha pré-existente fora do CI: `test_voice.test_gemini_tts_uses_legacy_
+  submaker_fields` retorna `None` por ausência de `storage/temp/tts-gemini-
+  Zephyr.mp3` no ambiente; não relacionada às mudanças desta data.
+- Seleção completa do CI: 99 testes OK. Mudanças na WebUI exigem restart do
+  Streamlit para valer (botão de arquivamento e persistência de
+  `publication.json`).

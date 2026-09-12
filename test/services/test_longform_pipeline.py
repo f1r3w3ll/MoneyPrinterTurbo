@@ -75,7 +75,7 @@ class LongformTests(unittest.TestCase):
 
     def test_regenerating_audio_invalidates_old_video_before_later_failure(self):
         from app.services import longform_pipeline as pipeline
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             folder = Path(tmp)
             params = LongFormVideoParams(video_subject='Teste', structured_script=example_script())
             entries = {str(i): dict(index=i, audio='old.mp3', image='old.png', duration=3., cues=[]) for i in range(5)}
@@ -102,7 +102,7 @@ class LongformTests(unittest.TestCase):
         self.assertTrue(all(len(cue['text'].split()) <= 12 for cue in cues))
 
     def test_checkpoint_replacement_preserves_previous_on_failure(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             manager = CheckpointManager('test', tmp)
             state = CheckpointState(task_id='test', current_phase='audio', completed_scenes=[],
                                     generated_files={}, timestamp=1)
@@ -121,7 +121,7 @@ class LongformTests(unittest.TestCase):
 
     def test_full_pipeline_resume_after_thumbnail_failure(self):
         from app.services import longform_pipeline as pipeline
-        with TemporaryDirectory() as tmp:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             folder = Path(tmp)
             params = LongFormVideoParams(video_subject='Teste', structured_script=example_script(),
                                          voice_name='pt-BR-FranciscaNeural', video_aspect='16:9')
@@ -166,7 +166,7 @@ class LongformTests(unittest.TestCase):
         from app.services.longform_media import compose, valid_video
         from PIL import Image
         from moviepy import VideoFileClip
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             folder = Path(tmp)
             audio_path = folder / 'scene.wav'
             with wave.open(str(audio_path), 'wb') as out:
@@ -191,7 +191,7 @@ class LongformTests(unittest.TestCase):
         from PIL import Image
         from moviepy import AudioClip, ColorClip, VideoFileClip
 
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             folder = Path(tmp)
             source = folder / 'source.mp4'
             logo = folder / 'logo.png'
@@ -216,7 +216,7 @@ class LongformTests(unittest.TestCase):
 
     def test_pipeline_appends_configured_cta_after_composition(self):
         from app.services import longform_pipeline as pipeline
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             folder = Path(tmp)
             params = LongFormVideoParams(
                 video_subject='Teste', structured_script=example_script(), cta_mode='text',

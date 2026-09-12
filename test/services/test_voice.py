@@ -80,7 +80,7 @@ class TestVoiceService(unittest.TestCase):
             Path(command[-1]).write_bytes(b"fake-silent-mp3")
             return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir, patch.object(
             vs.utils,
             "get_ffmpeg_binary",
             return_value="/tmp/fake-ffmpeg",
@@ -128,7 +128,7 @@ class TestVoiceService(unittest.TestCase):
         即使 FFmpeg 进程返回成功，也要确认输出文件真实存在且非空。这样可以把
         异常收敛在 TTS 阶段，而不是拖到后续视频合成阶段才暴露。
         """
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir, patch.object(
             vs.utils,
             "get_ffmpeg_binary",
             return_value="/tmp/fake-ffmpeg",
@@ -285,7 +285,7 @@ class TestVoiceService(unittest.TestCase):
                     return ""
                 return "1\n00:00:00,000 --> 00:00:01,000\nlegacy\n"
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir, patch.object(
             vs.edge_tts, "Communicate", _LegacyCommunicate
         ), patch.object(vs.edge_tts, "SubMaker", _FakeSubMaker):
             voice_file = str(Path(tmp_dir) / "legacy-edge-tts.mp3")
@@ -329,7 +329,7 @@ class TestVoiceService(unittest.TestCase):
             def get_srt(self):
                 return ""
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir, patch.object(
             vs.edge_tts, "Communicate", _HangingCommunicate
         ), patch.object(vs.edge_tts, "SubMaker", _FakeSubMaker), patch.object(
             vs.config,
@@ -486,7 +486,7 @@ class TestVoiceService(unittest.TestCase):
             chat=SimpleNamespace(completions=fake_completions)
         )
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir, patch.object(
             vs,
             "OpenAI",
             return_value=fake_client,
@@ -547,7 +547,7 @@ class TestVoiceService(unittest.TestCase):
             2.4,
         )
 
-        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir, patch.object(
             task_service.config,
             "app",
             dict(task_service.config.app, subtitle_provider="edge"),
@@ -709,7 +709,7 @@ class TestVoiceService(unittest.TestCase):
             ]
         )
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
             subtitle_file = Path(tmp_dir) / "subtitle.srt"
             vs.create_subtitle(
                 sub_maker=sub_maker,
@@ -740,7 +740,7 @@ class TestVoiceService(unittest.TestCase):
             ]
         )
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
             subtitle_file = Path(tmp_dir) / "subtitle.srt"
             vs.create_subtitle(
                 sub_maker=sub_maker,

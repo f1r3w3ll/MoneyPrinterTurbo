@@ -568,6 +568,39 @@ class StudioTests(unittest.TestCase):
             self.assertTrue(studio._folder(identifier).exists())
             studio._release(identifier)
 
+    def test_archive_production_moves_essentials_and_removes_the_rest(self):
+        from app.services import studio
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
+             patch.object(studio, 'validate_settings', return_value=[]), patch.object(studio, '_manager'):
+            identifier = studio.submit(LongFormVideoParams(video_subject='Teste', structured_script=example_script()))
+            folder = studio._folder(identifier)
+            (folder / 'final.mp4').write_bytes(b'video')
+            (folder / 'thumbnail.jpg').write_bytes(b'img')
+            (folder / 'script.json').write_text('{}')
+            (folder / 'publication.json').write_text(json.dumps({'title': 'T', 'description': 'D', 'tags': ['a', 'b']}))
+            (folder / 'scene-0.png').write_bytes(b'x')
+            record = json.loads((folder / 'production.json').read_text(encoding='utf-8'))
+            record['status'] = 'complete'
+            record['artifacts'] = {'video': str(folder / 'final.mp4'), 'thumbnail': str(folder / 'thumbnail.jpg')}
+            (folder / 'production.json').write_text(json.dumps(record), encoding='utf-8')
+            studio._release(identifier)
+            dest = Path(studio.archive_production(identifier, archive_root=Path(tmp) / 'PUB'))
+            self.assertTrue((dest / 'video.mp4').is_file())
+            self.assertTrue((dest / 'thumbnail.jpg').is_file())
+            self.assertTrue((dest / 'roteiro.json').is_file())
+            self.assertIn('Tags: a, b', (dest / 'descricao-youtube.txt').read_text(encoding='utf-8'))
+            self.assertFalse(folder.exists())
+
+    def test_archive_production_rejects_a_queued_project(self):
+        from app.services import studio
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, patch.object(studio, 'ROOT', Path(tmp)), \
+             patch.object(studio, 'validate_settings', return_value=[]), patch.object(studio, '_manager'):
+            identifier = studio.submit(LongFormVideoParams(video_subject='Teste', structured_script=example_script()))
+            with self.assertRaises(ValueError):
+                studio.archive_production(identifier, archive_root=Path(tmp) / 'PUB')
+            self.assertTrue(studio._folder(identifier).exists())
+            studio._release(identifier)
+
     def test_woopsocial_accepts_a_top_level_accounts_list(self):
         from app.services import woopsocial
         response = Mock()
@@ -600,6 +633,22 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(payload['socialAccounts'][0], {'platform': 'YOUTUBE', 'socialAccountId': 'account-1', 'title': 'Title', 'privacy': 'private'})
             self.assertEqual(request.call_args_list[1].args[0], f'{woopsocial.BASE_URL}/posts/validate')
             self.assertEqual(request.call_args_list[2].args[0], f'{woopsocial.BASE_URL}/posts')
+
+    def test_woopsocial_scheduled_post_goes_public_when_live(self):
+        from app.services import woopsocial
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            video = Path(tmp) / 'video.mp4'
+            video.write_bytes(b'video')
+            upload = Mock(); upload.json.return_value = {'mediaId': 'media-1'}
+            validation = Mock(); validation.json.return_value = {'isValid': True, 'errors': []}
+            posted = Mock(); posted.json.return_value = {'id': 'post-1'}
+            with patch('app.services.woopsocial.requests.post', side_effect=[upload, validation, posted]) as request, \
+                 patch('app.services.woopsocial._headers', return_value={'Authorization': 'Bearer test'}):
+                woopsocial.publish(video, 'project-1', 'account-1', 'Title', 'Description', 'scheduled',
+                                   scheduled_at='2026-09-13T10:00:00-03:00')
+            payload = request.call_args_list[1].kwargs['json']
+            self.assertEqual(payload['schedule'], {'type': 'SCHEDULE_FOR_LATER', 'scheduledFor': '2026-09-13T10:00:00-03:00'})
+            self.assertEqual(payload['socialAccounts'][0]['privacy'], 'public')
 
     def test_woopsocial_uses_upload_session_for_larger_videos(self):
         from app.services import woopsocial

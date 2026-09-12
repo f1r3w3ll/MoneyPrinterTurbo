@@ -132,7 +132,61 @@ def delete_production(identifier):
         folder = _folder(identifier)
         if not folder.is_dir():
             raise ValueError('Projeto de produção não encontrado.')
+        _rmtree_production(folder)
+
+
+def _rmtree_production(folder):
+    try:
         shutil.rmtree(folder)
+    except OSError:
+        time.sleep(1)
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def published_archive_root():
+    """Pasta onde produções publicadas são arquivadas (fora do repositório)."""
+    return Path(config.root_dir).parent / 'PUBLICADOS'
+
+
+def archive_production(identifier, archive_root=None):
+    """Move os essenciais de uma produção publicada para a pasta PUBLICADOS e apaga o restante.
+
+    Copia o vídeo final, a thumbnail, o roteiro e, quando existir, a descrição
+    salva em publication.json; em seguida remove a pasta inteira da produção.
+    """
+    nl = chr(10)
+    with _lock:
+        record = get_production(identifier)
+        if identifier in _active or record['status'] in ('queued', 'running'):
+            raise ValueError('Não é possível arquivar uma produção em andamento ou na fila.')
+        folder = _folder(identifier)
+        if not folder.is_dir():
+            raise ValueError('Projeto de produção não encontrado.')
+        artifacts = record.get('artifacts') or {}
+        video = artifacts.get('video')
+        if not video or not Path(video).is_file():
+            raise ValueError('O MP4 desta produção não está disponível para arquivar.')
+        root = Path(archive_root) if archive_root else published_archive_root()
+        dest = root / str(identifier)
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(video), str(dest / 'video.mp4'))
+        thumbnail = artifacts.get('thumbnail')
+        if thumbnail and Path(thumbnail).is_file():
+            shutil.move(str(thumbnail), str(dest / 'thumbnail.jpg'))
+        script_file = folder / 'script.json'
+        if script_file.is_file():
+            shutil.move(str(script_file), str(dest / 'roteiro.json'))
+        publication_file = folder / 'publication.json'
+        if publication_file.is_file():
+            publication = _read(publication_file)
+            lines = [str(publication.get('title') or '').strip(), '',
+                     str(publication.get('description') or '').strip()]
+            tags = [str(tag).strip() for tag in (publication.get('tags') or []) if str(tag).strip()]
+            if tags:
+                lines += ['', 'Tags: ' + ', '.join(tags)]
+            (dest / 'descricao-youtube.txt').write_text(nl.join(lines).strip() + nl, encoding='utf-8')
+        _rmtree_production(folder)
+        return str(dest)
 
 
 def _public_params(params):

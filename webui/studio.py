@@ -924,6 +924,25 @@ Do not place headings inside any field. Use the supplied scene timing for chapte
                 st.warning(f'Publicação enviada, mas os metadados não foram salvos: {redact(exc)}')
         except Exception as exc:
             st.error(redact(exc))
+        except Exception as exc:
+            st.error(redact(exc))
+
+    archive_flag = f'confirm_archive_{selected["id"]}'
+    if st.button('Arquivar como publicado', key=f'archive_{selected["id"]}'):
+        st.session_state[archive_flag] = True
+    if st.session_state.get(archive_flag):
+        st.warning('Move vídeo, thumbnail, roteiro e descrição para a pasta PUBLICADOS e apaga os demais arquivos da produção. Essa ação é permanente.')
+        confirm_col, cancel_col = st.columns(2)
+        if confirm_col.button('Confirmar arquivamento', key=f'archive_confirm_{selected["id"]}'):
+            try:
+                backend = importlib.import_module('app.services.studio')
+                archived = backend.archive_production(selected['id'])
+                st.success(f'Produção arquivada em {archived}.')
+            except Exception as exc:
+                st.error(redact(exc))
+            st.session_state.pop(archive_flag, None)
+        if cancel_col.button('Cancelar', key=f'archive_cancel_{selected["id"]}'):
+            st.session_state.pop(archive_flag, None)
 
 
 def render():
