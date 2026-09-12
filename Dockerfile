@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim-bookworm
 
 # Set the working directory in the container
 WORKDIR /MoneyPrinterTurbo
@@ -16,8 +16,8 @@ ARG PIP_USE_OFFICIAL=0
 
 # Install system dependencies with retry logic
 RUN if [ "$DOCKER_BUILD_MIRROR" = "china" ]; then \
-        echo "deb http://mirrors.aliyun.com/debian bullseye main" > /etc/apt/sources.list && \
-        echo "deb http://mirrors.aliyun.com/debian-security bullseye-security main" >> /etc/apt/sources.list; \
+        echo "deb http://mirrors.aliyun.com/debian bookworm main" > /etc/apt/sources.list && \
+        echo "deb http://mirrors.aliyun.com/debian-security bookworm-security main" >> /etc/apt/sources.list; \
     else \
         echo "Using default Debian mirrors"; \
     fi && \
@@ -75,7 +75,8 @@ COPY . .
 EXPOSE 8501
 
 # Command to run the application
-CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False","--server.showEmailPrompt=False"]
+# --server.address=0.0.0.0 makes the WebUI reachable from outside the container
+CMD ["streamlit", "run", "./webui/Main.py","--server.address=0.0.0.0","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False","--server.showEmailPrompt=False"]
 
 # 1. Build the Docker image using the following command
 # docker build -t moneyprinterturbo .
