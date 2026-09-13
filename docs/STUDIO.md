@@ -111,3 +111,27 @@ persistência, retomada, configuração e interações da interface. Não compro
 disponibilidade atual de APIs, qualidade de IA ou desempenho em vídeos de
 30 minutos. Uma geração integral usando serviços externos ainda deve ser
 validada com as credenciais e conteúdo escolhidos pelo usuário.
+
+## Importar roteiro JSON
+
+Use **Criar vídeo → Importar JSON** para carregar um roteiro produzido fora do
+Estúdio. O arquivo deve ter `title`, `description`, `total_duration_estimate`
+e `scenes`. Cada cena requer `index`, `narration` e `image_prompt`; se incluir
+`duration_seconds`, mantenha-o entre 3 e 60 segundos. As únicas transições
+válidas são `fade`, `slide`, `zoom` e `none`.
+
+A duração planejada pode ficar entre 5 e 30 minutos. Ela orienta o roteiro,
+mas o MP4 terá a duração efetiva do áudio sintetizado; portanto, produza texto
+suficiente para a meta e revise a estimativa da tela antes de iniciar custos de
+imagem e voz. Para inglês dos EUA, o planejador usa aproximadamente 13
+caracteres por segundo.
+
+Roteiros preparados localmente podem ficar em `storage/studio/imports/`. Esse
+diretório é operacional e ignorado pelo Git: não use-o para documentação ou
+para dados que precisem acompanhar um commit. Antes de importar, valide o JSON
+com `ScriptParser().parse_json_script(...)`.
+
+Ao tratar temas históricos, políticos ou de segurança, registre fontes no campo
+`metadata.sources`, atribua estatísticas a instituições verificáveis e separe
+resultados mensuráveis de interpretações. Prompts visuais devem ser seguros e
+não gráficos quando o assunto envolver violência ou vítimas.

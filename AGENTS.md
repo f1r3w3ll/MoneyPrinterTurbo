@@ -563,3 +563,36 @@ O gerador original foi preservado.
 - Seleção completa do CI: 99 testes OK. Mudanças na WebUI exigem restart do
   Streamlit para valer (botão de arquivamento e persistência de
   `publication.json`).
+
+## Roteiros importáveis baseados em fontes — 12–13/09/2026
+
+- JSONs destinados ao botão de importação do Estúdio devem seguir
+  `StructuredScript`: `title`, `description`, `total_duration_estimate` entre
+  300 e 1.800, e `scenes`. Cada cena precisa de `index` único não negativo,
+  `narration` (10–2.000 caracteres), `image_prompt` (3–1.000),
+  `duration_seconds` de 3–60 quando informado e transição em `fade`, `slide`,
+  `zoom` ou `none`. Validar sempre com `ScriptParser().parse_json_script(...)`
+  antes de entregar; a duração real continua sendo a do áudio de TTS.
+- Roteiros locais importáveis ficam em `storage/studio/imports/`, diretório
+  ignorado pelo Git. Em 12/09 foi criado
+  `nine-eleven-at-25-documentary-en-us-20min.json`: 40 cenas, 16.138
+  caracteres, inglês, documentário não gráfico sobre os 25 anos do 11 de
+  Setembro. O arquivo foi validado pelo parser.
+- Em 13/09 foi criado
+  `el-salvador-transformation-documentary-en-us-30min.json`: 50 cenas,
+  23.604 caracteres, inglês, documentário sobre transformação de segurança em
+  El Salvador. O roteiro separa fatos de avaliações e registra as fontes nos
+  metadados: IMF Country Report 25/58 (2025), World Bank/UNODC e revisão
+  periódica da ONU. Pontos factuais usados: FMI informa queda de um pico de
+  aproximadamente 100 homicídios por 100 mil para 1,9 em 2024; também cita
+  queda da percepção de crime como principal problema de ~60% em 2016 para
+  ~6% em 2023. Organismos da ONU pedem proteção de devido processo e revisão
+  do estado de exceção. Não apresentar o roteiro como prova de uma posição
+  política: ele mostra benefícios de segurança e os riscos institucionais.
+- Uma tentativa local de gerar um roteiro longo via OpenAI falhou por
+  `CERTIFICATE_VERIFY_FAILED` na cadeia inspecionada pela rede. A tentativa
+  alternativa via Claude permaneceu bloqueada numa requisição longa e foi
+  encerrada antes de produzir arquivo. Para não gerar custo nem manter processo
+  preso, os dois JSONs acima foram montados localmente e validados. Caso se
+  corrija TLS para OpenAI, usar a store ROOT do Windows no cliente HTTPX, como
+  já é feito para Claude; não desabilitar a verificação HTTPS.
