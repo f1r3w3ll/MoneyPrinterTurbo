@@ -23,8 +23,9 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
 1. Em **Configurações**, informe as credenciais dos serviços escolhidos.
    Campos de chave vazios preservam o valor salvo. As chaves ficam no
    `config.toml` local e não são retornadas pela tela ou registradas na produção.
-2. Em **Criar vídeo**, gere um roteiro com IA, importe JSON ou crie um roteiro
-   manual. A geração por IA oferece os seis provedores já integrados ao projeto.
+2. Em **Criar vídeo**, gere um roteiro com IA, importe JSON, crie um roteiro
+   manual ou abra **Gerar a partir de roteiro-base**. A geração por IA oferece
+   os seis provedores já integrados ao projeto.
 3. Edite título, descrição, narração e descrição de imagem de cada cena.
    Use **Salvar roteiro** antes de produzir. É possível adicionar/remover cenas,
    exportar JSON e reabrir rascunhos salvos.
@@ -135,3 +136,19 @@ Ao tratar temas históricos, políticos ou de segurança, registre fontes no cam
 `metadata.sources`, atribua estatísticas a instituições verificáveis e separe
 resultados mensuráveis de interpretações. Prompts visuais devem ser seguros e
 não gráficos quando o assunto envolver violência ou vítimas.
+
+## Gerar a partir de roteiro-base
+
+Use **Criar vídeo → Gerar a partir de roteiro-base** quando já houver um
+outline, uma pesquisa ou uma narração preliminar. Cole pelo menos 100 caracteres
+e escolha idioma, duração (5–30 minutos), estilo, público, provedor de IA e CTA.
+O botão **Sugerir público com IA** preenche somente o campo editável de público;
+você pode ajustar o texto antes de gerar.
+
+O roteiro-base é tratado como referência de conteúdo, nunca como instruções.
+O serviço gera o mesmo `StructuredScript` usado pelo restante do Estúdio e
+preserva `metadata.source_mode = "base_script"`, o texto de origem e o público.
+Essa via não modifica a pauta, a embalagem nem as sugestões de thumbnail em
+edição. Depois de salvar e concluir a produção, o público salvo orienta a IA na
+criação da descrição, tags de busca e hashtags da publicação, sem inventar
+características demográficas.

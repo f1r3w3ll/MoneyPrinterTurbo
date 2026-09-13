@@ -11,6 +11,20 @@ from webui import studio
 
 
 class StudioUITest(unittest.TestCase):
+    def test_script_sources_renders_parallel_base_script_form(self):
+        backend = ModuleType('app.services.studio')
+        backend.list_drafts = Mock(return_value=[])
+        app = AppTest.from_string(
+            'from webui.studio import _script_sources\n'
+            "_script_sources(__import__('types').SimpleNamespace(list_drafts=lambda: []), "
+            "{'llm': {}}, {'language': 'en-US', 'audience': 'US viewers'})",
+            default_timeout=40,
+        ).run()
+        self.assertFalse(app.exception)
+        self.assertIn('Roteiro-base', [item.label for item in app.text_area])
+        self.assertIn('Sugerir público com IA', [item.label for item in app.button])
+        self.assertIn('Gerar cenas do roteiro-base', [item.label for item in app.button])
+
     def test_recovery_delete_requires_confirmation_and_clears_active(self):
         backend = ModuleType('app.services.studio')
         records = [{'id': 'failed-1', 'title': 'Vídeo salvo', 'status': 'failed'}]

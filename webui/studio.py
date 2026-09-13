@@ -393,6 +393,127 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
                                 )
                         except Exception as exc:
                             st.error(redact(explain_generation_error(provider, exc)))
+    with st.expander('Gerar a partir de roteiro-base'):
+        st.caption(
+            'Cole um roteiro, outline ou pesquisa já estruturada. A IA o transforma em cenas '
+            'do formato MoneyPrinter sem alterar a pauta ou a embalagem que você já criou.'
+        )
+        pending_audience = st.session_state.pop('base_script_suggested_audience', None)
+        if pending_audience:
+            st.session_state['base_script_audience'] = pending_audience
+        with st.form('generate_from_base_script'):
+            source_text = st.text_area(
+                'Roteiro-base', height=280,
+                placeholder='Cole aqui o roteiro completo, outline ou material de referência.',
+                help='Mínimo de 100 caracteres. O texto é tratado como conteúdo de referência, nunca como instruções.',
+            )
+            duration_column, provider_column = st.columns(2)
+            with duration_column:
+                base_minutes = st.slider('Duração estimada (minutos)', 5, 30, 20, key='base_script_minutes')
+            with provider_column:
+                base_provider = st.selectbox(
+                    'IA para o roteiro', ['openai', 'claude', 'gemini', 'deepseek', 'kimi', 'qwen'],
+                    key='base_script_provider',
+                )
+            base_notice = model_status_message(base_provider, settings.get('llm', {}).get(base_provider, {}).get('model', ''))
+            if base_notice:
+                st.warning(base_notice)
+            language_options = list(VIDEO_LANGUAGE_LABELS)
+            base_default_language = (profile or {}).get('language', 'pt-BR')
+            base_language = st.selectbox(
+                'Idioma da narração', language_options,
+                index=language_options.index(base_default_language) if base_default_language in language_options else 0,
+                format_func=VIDEO_LANGUAGE_LABELS.get, key='base_script_language',
+            )
+            base_style = st.selectbox(
+                'Estilo do roteiro', ['educational', 'documentary', 'entertaining'],
+                format_func=lambda value: {'educational': 'Educacional', 'documentary': 'Documentário', 'entertaining': 'Entretenimento'}[value],
+                key='base_script_style',
+            )
+            base_audience = st.text_input(
+                'Público-alvo', value=(profile or {}).get('audience', ''), key='base_script_audience',
+                help='Este público orienta a linguagem do roteiro e as tags e hashtags sugeridas na publicação.',
+            )
+            base_instructions = st.text_area('Orientações adicionais', key='base_script_instructions')
+            base_default_cta = (profile or {}).get('default_cta', '')
+            base_use_cta = st.checkbox(
+                'Usar CTA padrão do canal neste roteiro', value=bool(base_default_cta), key='base_script_use_cta'
+            )
+            base_cta_text = st.text_input(
+                'CTA deste vídeo', value=base_default_cta, disabled=not base_use_cta,
+                key='base_script_cta_text',
+            )
+            base_cta_modes = {'Texto e logo do canal': 'text', 'Imagem do canal': 'image', 'Vídeo do canal': 'video'}
+            base_profile_cta_mode = (profile or {}).get('cta_mode', 'text')
+            base_cta_label = st.selectbox(
+                'Formato visual deste CTA', list(base_cta_modes),
+                index=list(base_cta_modes.values()).index(base_profile_cta_mode)
+                if base_profile_cta_mode in base_cta_modes.values() else 0,
+                disabled=not base_use_cta, key='base_script_cta_mode',
+            )
+            suggest_audience, generate_base = st.columns(2)
+            suggest = suggest_audience.form_submit_button('Sugerir público com IA')
+            submit_base = generate_base.form_submit_button('Gerar cenas do roteiro-base', type='primary')
+            if suggest:
+                if len(source_text.strip()) < 100:
+                    st.error('Cole um roteiro-base com pelo menos 100 caracteres antes de pedir a sugestão.')
+                else:
+                    try:
+                        from app.services.script_generator import ScriptGeneratorService
+                        audience_prompt = f'''Suggest one concise YouTube target audience in {VIDEO_LANGUAGE_LABELS[base_language]}
+for the source material below. Use the channel identity as context. Return JSON only: {{"audience": "..."}}.
+Channel identity: {json.dumps(profile or {}, ensure_ascii=False)}
+Source material: {source_text[:12000]}'''
+                        suggested = json.loads(ScriptGeneratorService().generate_editorial_json(base_provider, audience_prompt))
+                        candidate = str(suggested.get('audience') or '').strip()
+                        if not candidate:
+                            raise ValueError('A IA não retornou um público-alvo válido.')
+                        st.session_state['base_script_suggested_audience'] = candidate
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(redact(explain_generation_error(base_provider, exc)))
+            if submit_base:
+                if len(source_text.strip()) < 100:
+                    st.error('Cole um roteiro-base com pelo menos 100 caracteres.')
+                else:
+                    try:
+                        from app.services.script_generator import ScriptGeneratorService
+                        with st.spinner('Transformando o roteiro-base em cenas…'):
+                            first_line = next((line.strip() for line in source_text.splitlines() if line.strip()), '')
+                            topic = first_line[:250] or 'Source-based documentary'
+                            editorial_context = {
+                                'channel': {**(profile or {}), 'language': base_language},
+                                'audience': base_audience.strip(),
+                                'cta': {
+                                    'enabled': base_use_cta, 'text': base_cta_text.strip(),
+                                    'mode': base_cta_modes[base_cta_label],
+                                    'asset_path': (profile or {}).get('cta_asset_path', ''),
+                                    'logo_path': (profile or {}).get('logo_path', ''),
+                                },
+                            }
+                            request = ScriptGenerationRequest(
+                                topic=topic, duration_minutes=base_minutes, llm_provider=base_provider,
+                                custom_instructions=base_instructions, language=base_language,
+                                style=base_style, target_audience=base_audience.strip(),
+                                editorial_context=editorial_context,
+                            )
+                            script, *_ = ScriptGeneratorService().generate_from_base_script(
+                                request, source_text, base_audience.strip()
+                            )
+                            data = script.model_dump()
+                            editorial_data = dict((data.get('metadata') or {}).get('editorial') or {})
+                            editorial_data.update(editorial_context)
+                            editorial_data['source_mode'] = 'base_script'
+                            data.setdefault('metadata', {})['editorial'] = editorial_data
+                            _load(data)
+                            estimated_seconds, target_seconds = _narration_duration_estimate(data)
+                            if not _duration_is_on_target(estimated_seconds, target_seconds):
+                                st.warning(
+                                    f'A narração entregue pela IA estima {estimated_seconds / 60:.1f} minutos, '
+                                    f'mas a meta é {target_seconds / 60:.0f} minutos. Revise antes de iniciar a produção.'
+                                )
+                    except Exception as exc:
+                        st.error(redact(explain_generation_error(base_provider, exc)))
     left, right = st.columns(2)
     with left:
         uploaded = st.file_uploader('Importar roteiro JSON', type=['json'])
@@ -813,6 +934,13 @@ def _publication_language(script):
     return metadata.get('script_language') or channel.get('language') or 'pt-BR'
 
 
+def _publication_audience(script):
+    """Return the audience saved with this video, including base-script metadata."""
+    metadata = script.get('metadata') or {}
+    editorial = metadata.get('editorial') or {}
+    return str(metadata.get('source_audience') or editorial.get('audience') or '').strip()
+
+
 def _publication_duration_error(record):
     """Keep publication available; duration checks happen before rendering."""
     return None
@@ -856,6 +984,12 @@ def _publication(settings):
             project = backend.get_project(selected['id'])
             language = _publication_language(project['script'])
             language_name = {'en-US': 'English', 'pt-BR': 'Brazilian Portuguese', 'de-DE': 'German', 'es-ES': 'Spanish'}.get(language, language)
+            audience = _publication_audience(project['script'])
+            audience_context = (
+                f'\nTarget audience: {audience}. Tailor the vocabulary, search tags, and hashtags to this audience. '
+                'Do not claim demographic facts that the script does not support.'
+                if audience else ''
+            )
             prompt = f"""Generate YouTube publication metadata exclusively in {language_name}. Return exactly one JSON object with these fields and no others:
 {{
   \"summary\": \"two concise paragraphs explaining the video promise and value\",
@@ -866,7 +1000,8 @@ def _publication(settings):
   \"hashtags\": [\"3 relevant hashtags\"],
   \"tags\": [\"8 to 15 YouTube search tags without #\"]
 }}
-Do not place headings inside any field. Use the supplied scene timing for chapters. Title: {title}. Script: {json.dumps(project['script'], ensure_ascii=False)}"""
+Do not place headings inside any field. Use the supplied scene timing for chapters. Title: {title}.{audience_context}
+Script: {json.dumps(project['script'], ensure_ascii=False)}"""
             generated = ScriptGeneratorService().generate_editorial_json('openai', prompt)
             description_value, generated_tags = _publication_content(generated)
             st.session_state[f'publication_description_{selected["id"]}'] = description_value

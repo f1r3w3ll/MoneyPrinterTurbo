@@ -596,3 +596,22 @@ O gerador original foi preservado.
   preso, os dois JSONs acima foram montados localmente e validados. Caso se
   corrija TLS para OpenAI, usar a store ROOT do Windows no cliente HTTPX, como
   já é feito para Claude; não desabilitar a verificação HTTPS.
+
+## Roteiro-base paralelo — 13/09/2026
+
+- **Criar vídeo → Gerar a partir de roteiro-base** aceita outline, pesquisa ou
+  narração preliminar com ao menos 100 caracteres. Mantém a via de pauta e
+  embalagem existente: o texto serve somente para orientar a geração das cenas
+  do `StructuredScript` e não altera a pauta, embalagem ou thumbnail em edição.
+- A tela pede idioma, duração de 5–30 minutos, estilo, público, provider e CTA.
+  **Sugerir público com IA** preenche apenas o campo editável. Para o canal
+  americano ativo, o padrão privilegia adultos dos EUA de 25–44 anos interessados
+  em explicações factuais de ciência, tecnologia e infraestrutura.
+- O roteiro salvo registra `metadata.source_mode = "base_script"`, o texto
+  fonte e `source_audience`; o contexto editorial também guarda `source_mode`,
+  público, canal, idioma e CTA. Ao gerar a descrição de publicação, o público
+  registrado instrui vocabulário, tags e hashtags, sem inventar fatos
+  demográficos.
+- A geração usa o mesmo parser, orçamento de duração, editor, persistência e
+  pipeline de produção da via normal. O material colado é delimitado como
+  referência, e comandos internos são ignorados pelo prompt.
