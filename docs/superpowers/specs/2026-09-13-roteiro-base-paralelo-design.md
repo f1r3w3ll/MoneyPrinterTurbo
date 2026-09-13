@@ -38,3 +38,19 @@ Testes cobrirão a montagem da instrução para roteiro-base, os metadados persi
 ## Fora de escopo nesta etapa
 
 A publicação da thumbnail exige a API oficial do YouTube porque o contrato atual da WoopSocial não expõe esse campo. Ela será planejada separadamente, após definir o fluxo de autorização Google por canal.
+
+## Diretriz editorial para o canal americano
+
+O perfil ativo **No One Wrote It Down** atenderá adultos dos Estados Unidos entre
+25 e 44 anos, curiosos e profissionalmente interessados em ciência, tecnologia,
+infraestrutura e seus efeitos cotidianos. A linguagem da narração será inglês
+americano claro e natural: abre com uma tensão concreta, explica termos técnicos
+na primeira ocorrência e usa exemplos reconhecíveis no contexto dos Estados
+Unidos sem presumir conhecimento especializado.
+
+O tom será documentário explicativo, direto, inteligente e conversacional. Cada
+vídeo deverá apoiar afirmações factuais em fontes primárias, instituições
+científicas, documentação técnica ou jornalismo confiável; dados contestados
+serão atribuídos e datados. Hashtags e tags usarão o tema, o público de 25–44 e
+o benefício prático do vídeo, sem inventar interesses demográficos ou recorrer
+a linguagem de choque.
