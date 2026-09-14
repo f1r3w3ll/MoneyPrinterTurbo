@@ -29,7 +29,7 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
 3. Edite título, descrição, narração e descrição de imagem de cada cena.
    Use **Salvar roteiro** antes de produzir. É possível adicionar/remover cenas,
    exportar JSON e reabrir rascunhos salvos.
-4. Escolha imagem, voz, formato, legendas e estilo da thumbnail. Clique em
+4. Escolha a fonte visual, voz, formato, legendas e estilo da thumbnail. Clique em
    **Gerar vídeo completo**. Chamadas externas podem consumir créditos.
 5. Em **Produções**, acompanhe as etapas. Use **Atualizar histórico** para
    carregar o resultado final, abrir o player e baixar MP4, thumbnail, roteiro
@@ -41,6 +41,14 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
   Replicate executa o modelo na nuvem e requer créditos; uma instalação local
   de ComfyUI ainda não está ligada a esta tela. Midjourney não é oferecido
   porque sua implementação ainda não existe.
+- Clipes gratuitos: Pexels, Pixabay e Coverr podem ser selecionados como fonte
+  visual. Cada biblioteca exige sua própria chave de API, inserida em
+  **Configurações**. O modo **Clipes gratuitos** usa somente esses vídeos; o
+  modo **Híbrido** usa clipes em duas de cada três cenas e imagens por IA nas
+  demais. A produção salva a fonte, URL e termo de busca de cada clipe em
+  `artifacts.json`, além do arquivo baixado na própria pasta da produção. Um
+  clipe indisponível interrompe a produção antes da composição; a retomada
+  reutiliza os clipes que já foram baixados.
 - Voz: Edge TTS em português, inglês ou espanhol; ElevenLabs quando chave e
   identificador de voz estiverem configurados. Play.ht e Murf não são oferecidos.
 - A duração final é medida pelo áudio de cada cena. A estimativa do roteiro
@@ -73,7 +81,7 @@ uma produção nova; não retoma uma anterior.
 Ao lado da retomada, **Apagar projeto** permite remover permanentemente os
 arquivos daquela produção após confirmação. Produções em execução ou na fila
 continuam protegidas contra exclusão.
-Áudios e imagens válidos são reutilizados; arquivos ausentes ou inválidos são
+Áudios, imagens e clipes gratuitos válidos são reutilizados; arquivos ausentes ou inválidos são
 regenerados e podem causar novas cobranças. Os parâmetros do roteiro ficam
 fixos na retomada; para alterá-los, crie outra produção. Corrigir credenciais
 na configuração é permitido. Se API e Streamlit estiverem em processos

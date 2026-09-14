@@ -279,6 +279,11 @@ def _settings(service):
         st.caption('Roteiros configurados: ' + (', '.join(configured) or 'nenhum'))
         images = values.get('image_generation', {})
         st.caption(f"Imagens: DALL-E {'configurado' if images.get('openai_configured') else 'pendente'} · Replicate {'configurado' if images.get('sd_configured') else 'pendente'}")
+        stock = values.get('stock', {})
+        st.caption('Clipes gratuitos: ' + ' · '.join(
+            f"{name} {'configurado' if stock.get(f'{key}_configured') else 'pendente'}"
+            for key, name in (('pexels', 'Pexels'), ('pixabay', 'Pixabay'), ('coverr', 'Coverr'))
+        ))
         provider = st.selectbox('Provedor de roteiro', ['openai', 'claude', 'gemini', 'deepseek', 'kimi', 'qwen'])
         current = values.get('llm', {}).get(provider, {})
         model_notice = model_status_message(provider, current.get('model', ''))
@@ -292,6 +297,9 @@ def _settings(service):
             enabled = st.checkbox('Habilitar provedor', value=current.get('enabled', True), key=f'enabled_{provider}')
             image_key = st.text_input('Chave OpenAI para imagens DALL-E', type='password')
             sd_key = st.text_input('Chave Replicate para Stable Diffusion', type='password')
+            pexels_key = st.text_input('Chave Pexels para clipes gratuitos', type='password')
+            pixabay_key = st.text_input('Chave Pixabay para clipes gratuitos', type='password')
+            coverr_key = st.text_input('Chave Coverr para clipes gratuitos', type='password')
             eleven_key = st.text_input('Chave ElevenLabs', type='password')
             woop_key = st.text_input('Chave WoopSocial para publicação', type='password')
             saved_voice = values.get('premium_tts', {}).get('elevenlabs_voice_id', '')
@@ -309,7 +317,7 @@ def _settings(service):
                     config['model'] = model.strip()
                 if base_url.strip():
                     config['base_url'] = base_url.strip()
-                service.save_settings({'llm': {provider: config}, 'image_generation': {'openai_api_key': image_key, 'sd_api_key': sd_key}, 'premium_tts': {'elevenlabs_api_key': eleven_key, 'elevenlabs_voice_id': eleven_voice}, 'woopsocial': {'woopsocial_api_key': woop_key}})
+                service.save_settings({'llm': {provider: config}, 'image_generation': {'openai_api_key': image_key, 'sd_api_key': sd_key}, 'stock': {'pexels_api_key': pexels_key, 'pixabay_api_key': pixabay_key, 'coverr_api_key': coverr_key}, 'premium_tts': {'elevenlabs_api_key': eleven_key, 'elevenlabs_voice_id': eleven_voice}, 'woopsocial': {'woopsocial_api_key': woop_key}})
                 st.success('Configurações salvas.')
     return service.get_settings()
 
@@ -613,7 +621,15 @@ def _editor(backend):
 
 def _produce(backend, settings, script):
     st.subheader('5 · Produza o vídeo')
-    image_provider = st.selectbox('Imagens', ['dalle', 'sd'], format_func=lambda p: {'dalle': 'DALL-E · OpenAI', 'sd': 'Stable Diffusion · Replicate'}[p])
+    visual_modes = {'ai': 'Imagens por IA', 'stock': 'Clipes gratuitos', 'hybrid': 'Híbrido · clipes + IA'}
+    visual_mode = st.selectbox('Fonte visual', list(visual_modes), format_func=visual_modes.get,
+                            help='Clipes gratuitos reduzem custo. O modo híbrido usa dois clipes para cada imagem de IA.')
+    stock_provider = st.selectbox('Biblioteca prioritária de clipes', ['pexels', 'pixabay', 'coverr'],
+        format_func=lambda p: {'pexels': 'Pexels', 'pixabay': 'Pixabay', 'coverr': 'Coverr'}[p],
+        disabled=visual_mode == 'ai')
+    if visual_mode in ('stock', 'hybrid'):
+        st.caption('Se a biblioteca prioritária não trouxer um resultado, o Estúdio tenta as outras que estiverem configuradas. Cada clipe usado fica salvo nesta produção com a fonte e o link de origem.')
+    image_provider = st.selectbox('Provedor de imagens por IA', ['dalle', 'sd'], format_func=lambda p: {'dalle': 'DALL-E · OpenAI', 'sd': 'Stable Diffusion · Replicate'}[p], disabled=visual_mode == 'stock')
     aspect_options = {'Retrato · 9:16': '9:16', 'Paisagem · 16:9': '16:9'}
     aspect_label = st.selectbox('Proporção do vídeo', list(aspect_options), index=1, key='output_aspect')
     aspect = aspect_options[aspect_label]
@@ -624,8 +640,8 @@ def _produce(backend, settings, script):
     )
     if animated_intro:
         st.caption('Na composição, as primeiras cenas receberão movimento cinematográfico mais intenso.')
-    image_quality = st.selectbox('Qualidade DALL-E', ['standard', 'hd'], key='output_quality', disabled=image_provider != 'dalle')
-    image_size = st.selectbox('Tamanho DALL-E', ['1024x1024', '1792x1024', '1024x1792'], key='output_size', disabled=image_provider != 'dalle')
+    image_quality = st.selectbox('Qualidade DALL-E', ['standard', 'hd'], key='output_quality', disabled=visual_mode == 'stock' or image_provider != 'dalle')
+    image_size = st.selectbox('Tamanho DALL-E', ['1024x1024', '1792x1024', '1024x1792'], key='output_size', disabled=visual_mode == 'stock' or image_provider != 'dalle')
     st.session_state.setdefault('output_thumbnail_text', script['title'] if script else '')
     thumbnail_text = st.text_input('Texto da thumbnail', key='output_thumbnail_text')
     thumbnail_style = st.selectbox('Estilo da thumbnail', ['hybrid', 'ai-only', 'template'], key='output_thumbnail_style')
@@ -660,7 +676,7 @@ def _produce(backend, settings, script):
             subtitle_background = st.checkbox('Fundo da legenda', value=True, key='subtitle_background')
         with background_color_column:
             text_background_color = st.color_picker('Cor do fundo', '#000000', key='subtitle_background_color', disabled=not subtitle_background) if subtitle_background else False
-    st.caption('A produção inclui narração, imagens, legendas, vídeo e thumbnail. Imagens e vozes premium podem gerar custos nas APIs.')
+    st.caption('A produção inclui narração, material visual, legendas, vídeo e thumbnail. Imagens por IA e vozes premium podem gerar custos nas APIs.')
     if st.button('Gerar vídeo completo', key='produce', type='primary', disabled=script is None):
         parsed = ScriptParser().parse_json_script(script)
         estimated_seconds, target_seconds = _narration_duration_estimate(script)
@@ -677,6 +693,8 @@ def _produce(backend, settings, script):
             image_provider=image_provider,
             image_quality=image_quality,
             image_size=image_size,
+            visual_mode=visual_mode,
+            stock_provider=stock_provider,
             voice_name=voice,
             premium_tts_provider='elevenlabs' if voice.startswith('elevenlabs:') else None,
             font_name=font,

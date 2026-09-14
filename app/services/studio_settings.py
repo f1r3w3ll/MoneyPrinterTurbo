@@ -28,7 +28,13 @@ def get_settings():
                    elevenlabs_voice_id=config.premium_tts.get('elevenlabs_voice_id', ''),
                    elevenlabs_model=config.premium_tts.get('elevenlabs_model', 'eleven_multilingual_v2'))
         woop = dict(api_key='', configured=bool(config.app.get('woopsocial_api_key')))
-        return dict(llm=llm, image_generation=image, premium_tts=tts, woopsocial=woop)
+        stock = dict(
+            pexels_api_key='', pixabay_api_key='', coverr_api_key='',
+            pexels_configured=bool(config.app.get('pexels_api_keys')),
+            pixabay_configured=bool(config.app.get('pixabay_api_keys')),
+            coverr_configured=bool(config.app.get('coverr_api_keys')),
+        )
+        return dict(llm=llm, image_generation=image, premium_tts=tts, woopsocial=woop, stock=stock)
 
 
 def _merge(current, values, allowed):
@@ -61,6 +67,15 @@ def save_settings(values):
         if image.get('default_provider', 'dalle') not in ('dalle', 'sd'):
             raise ValueError('Provedor de imagens não implementado.')
         app = _merge(config.app, values.get('woopsocial', {}), ('woopsocial_api_key',))
+        stock_values = values.get('stock', {})
+        for provider in ('pexels', 'pixabay', 'coverr'):
+            key_name = f'{provider}_api_key'
+            value = str(stock_values.get(key_name, '') or '').strip()
+            if not value:
+                continue
+            if '...' in value or '***' in value:
+                raise ValueError('Informe a chave completa; valores mascarados não podem ser salvos.')
+            app[f'{provider}_api_keys'] = [value]
         previous = (copy.deepcopy(config.llm), copy.deepcopy(config.image_generation), copy.deepcopy(config.premium_tts), copy.deepcopy(config.app))
         try:
             for target, value in [(config.llm, llm), (config.image_generation, image), (config.premium_tts, tts), (config.app, app)]:
@@ -93,15 +108,26 @@ def redact(message):
 def validate_settings(params):
     errors = []
     settings = get_settings()
-    if params.image_provider not in ('dalle', 'sd'):
-        errors.append('Selecione DALL-E ou Stable Diffusion para as imagens.')
-    elif params.image_provider == 'dalle' and not settings['image_generation']['openai_configured']:
-        errors.append('Configure a chave OpenAI para gerar imagens.')
-    elif params.image_provider == 'sd':
-        if not settings['image_generation']['sd_configured']:
-            errors.append('Configure a chave do Replicate para Stable Diffusion.')
-        if importlib.util.find_spec('replicate') is None:
-            errors.append('Instale as dependências atualizadas com uv sync --frozen (Replicate ausente).')
+    visual_mode = getattr(params, 'visual_mode', 'ai')
+    if visual_mode not in ('ai', 'stock', 'hybrid'):
+        errors.append('Selecione uma fonte visual válida.')
+    if visual_mode in ('ai', 'hybrid'):
+        if params.image_provider not in ('dalle', 'sd'):
+            errors.append('Selecione DALL-E ou Stable Diffusion para as imagens.')
+        elif params.image_provider == 'dalle' and not settings['image_generation']['openai_configured']:
+            errors.append('Configure a chave OpenAI para gerar imagens.')
+        elif params.image_provider == 'sd':
+            if not settings['image_generation']['sd_configured']:
+                errors.append('Configure a chave do Replicate para Stable Diffusion.')
+            if importlib.util.find_spec('replicate') is None:
+                errors.append('Instale as dependências atualizadas com uv sync --frozen (Replicate ausente).')
+    if visual_mode in ('stock', 'hybrid'):
+        provider = getattr(params, 'stock_provider', 'pexels')
+        labels = {'pexels': 'Pexels', 'pixabay': 'Pixabay', 'coverr': 'Coverr'}
+        if provider not in labels:
+            errors.append('Selecione Pexels, Pixabay ou Coverr para os clipes gratuitos.')
+        elif not settings.get('stock', {}).get(f'{provider}_configured'):
+            errors.append(f'Configure uma chave {labels[provider]} para usar clipes gratuitos.')
     if not params.voice_name:
         errors.append('Selecione uma voz para a narração.')
     elif params.voice_name.startswith('elevenlabs:'):

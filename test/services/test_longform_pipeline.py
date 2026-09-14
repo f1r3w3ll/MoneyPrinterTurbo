@@ -113,6 +113,28 @@ class LongformTests(unittest.TestCase):
                     manager.save_checkpoint(state)
             self.assertEqual(manager.load_checkpoint().current_phase, 'audio')
 
+    def test_stock_production_keeps_clip_provenance_without_generating_images(self):
+        from app.services import longform_pipeline as pipeline
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            folder = Path(tmp)
+            params = LongFormVideoParams(video_subject='Teste', structured_script=example_script(),
+                visual_mode='stock', stock_provider='pexels')
+            def audio(scene, _params, target):
+                Path(target).write_bytes(b'audio')
+                return {'path': str(target), 'duration': 3., 'cues': []}
+            def stock(scene, _params, _target):
+                return {'path': f'clip-{scene.index}.mp4', 'provider': 'pexels',
+                        'source_url': f'https://video.example/{scene.index}', 'search_term': 'data center'}
+            with patch.object(pipeline, 'generate_scene_audio', side_effect=audio), \
+                 patch.object(pipeline, 'fetch_scene_clip', side_effect=stock), \
+                 patch.object(pipeline, 'generate_scene_image') as images, \
+                 patch.object(pipeline, 'valid_audio', side_effect=bool), \
+                 patch.object(pipeline, 'valid_stock_video', side_effect=bool):
+                result = pipeline.run('stock-test', params, folder, stop_at='images')
+            images.assert_not_called()
+            self.assertEqual(len(result['stock_sources']), 5)
+            self.assertEqual(result['stock_sources'][0]['provider'], 'pexels')
+
     def test_duplicate_scene_indices_rejected(self):
         script = example_script()
         script.scenes[1].index = 0
@@ -185,6 +207,28 @@ class LongformTests(unittest.TestCase):
                 self.assertIsNotNone(clip.audio)
                 self.assertEqual(clip.size, [160, 90])
             self.assertFalse(valid_video(result, expected_duration=10.))
+
+    def test_stock_clip_is_composed_with_the_scene_narration(self):
+        from app.services.longform_media import compose, valid_video
+        from moviepy import ColorClip, VideoFileClip
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            folder = Path(tmp)
+            audio_path = folder / 'scene.wav'
+            with wave.open(str(audio_path), 'wb') as out:
+                out.setnchannels(1); out.setsampwidth(2); out.setframerate(16000)
+                out.writeframes(b'\x00\x00' * 16000)
+            stock_path = folder / 'stock.mp4'
+            source = ColorClip((160, 90), color=(28, 104, 154), duration=.5)
+            source.write_videofile(str(stock_path), fps=12, codec='libx264', audio=False, logger=None)
+            source.close()
+            params = LongFormVideoParams(video_subject='Teste', video_aspect='16:9', bgm_type='', font_size=18)
+            result = compose([{'index': 0, 'stock_video': str(stock_path), 'audio': str(audio_path),
+                               'duration': 1., 'cues': []}], params, folder,
+                             output_name='stock-final.mp4', resolution=(160, 90), fps=12)
+            self.assertTrue(valid_video(result))
+            with VideoFileClip(result) as clip:
+                self.assertAlmostEqual(clip.duration, 1., delta=.15)
+                self.assertEqual(clip.size, [160, 90])
 
     def test_text_cta_appends_a_logo_endcard(self):
         from app.services.longform_media import append_cta, valid_video

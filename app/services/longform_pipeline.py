@@ -9,8 +9,9 @@ from app.services.checkpoint import CheckpointManager
 from app.services.script_parser import ScriptParser
 from app.services.studio_storage import write_json
 from app.services.longform_media import (generate_scene_audio, generate_scene_image, compose,
-    valid_audio, valid_image, valid_video, make_thumbnail, write_subtitles, append_cta,
+    valid_audio, valid_image, valid_stock_video, valid_video, make_thumbnail, write_subtitles, append_cta,
     cta_duration)
+from app.services.studio_stock import fetch_scene_clip
 
 
 def run(task_id, params, folder, report=None, stop_at='complete'):
@@ -38,6 +39,7 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
             manager.save_checkpoint(state)
         write_json(folder / 'artifacts.json', dict(video=data.get('video'), thumbnail=data.get('thumbnail'),
             script=str(folder / 'script.json'), subtitles=data.get('subtitles'),
+            stock_sources=data.get('stock_sources', []),
             duration_seconds=data.get('duration_seconds', sum(entry.get('duration', 0.) for entry in entries.values()))))
         report(phase, progress)
 
@@ -64,17 +66,36 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
                 save('audio', 5 + int(30 * (number + 1) / len(script.scenes)))
         if stop_at == 'audio':
             return {'audio_chunks': [entry['audio'] for entry in entries.values()]}
+        visual_mode = getattr(params, 'visual_mode', 'ai')
+        stock_sources = data.setdefault('stock_sources', [])
         for number, scene in enumerate(script.scenes):
             entry = entries[str(scene.index)]
-            if not valid_image(entry.get('image')):
+            use_stock = visual_mode == 'stock' or (visual_mode == 'hybrid' and scene.index % 3 != 2)
+            if use_stock and not valid_stock_video(entry.get('stock_video')):
+                data.pop('video', None)
+                data.pop('base_video', None)
+                save('images', 35 + int(20 * number / len(script.scenes)))
+                stock = fetch_scene_clip(scene, params, folder / 'stock')
+                entry['stock_video'] = stock['path']
+                entry['stock_source'] = {key: value for key, value in stock.items() if key != 'path'}
+                stock_sources = [item for item in stock_sources if item.get('scene_index') != scene.index]
+                stock_sources.append(dict(scene_index=scene.index, **entry['stock_source']))
+                data['stock_sources'] = stock_sources
+                state.completed_scenes = [int(key) for key, item in entries.items()
+                                          if item.get('image') or item.get('stock_video')]
+                save('images', 35 + int(20 * (number + 1) / len(script.scenes)))
+            elif not use_stock and not valid_image(entry.get('image')):
                 data.pop('video', None)
                 data.pop('base_video', None)
                 save('images', 35 + int(20 * number / len(script.scenes)))
                 entry['image'] = generate_scene_image(scene, params, folder / f'scene-{scene.index}.png')
-                state.completed_scenes = [int(key) for key, item in entries.items() if item.get('image')]
+                state.completed_scenes = [int(key) for key, item in entries.items()
+                                          if item.get('image') or item.get('stock_video')]
                 save('images', 35 + int(20 * (number + 1) / len(script.scenes)))
         if stop_at == 'images':
-            return {'images': {key: entry['image'] for key, entry in entries.items()}}
+            return {'images': {key: entry.get('image') for key, entry in entries.items() if entry.get('image')},
+                    'stock_sources': stock_sources,
+                    'stock_videos': {key: entry.get('stock_video') for key, entry in entries.items() if entry.get('stock_video')}}
         ordered = [entries[str(scene.index)] for scene in script.scenes]
         save('subtitles', 56)
         subtitles = write_subtitles(ordered, folder / 'subtitles.srt') if params.subtitle_enabled else None
@@ -100,7 +121,7 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
         if stop_at != 'video' and not valid_image(data.get('thumbnail')):
             data['thumbnail'] = make_thumbnail(script, params, folder)
         result = dict(video=data['video'], thumbnail=data.get('thumbnail'), script=str(script_file),
-                      subtitles=subtitles, duration_seconds=data['duration_seconds'])
+                      subtitles=subtitles, duration_seconds=data['duration_seconds'], stock_sources=stock_sources)
         save('complete', 100)
         # Retain validated artifacts for recovery if a final file is lost later.
         return result

@@ -47,6 +47,17 @@ def valid_video(filename, expected_duration=None):
         return False
 
 
+def valid_stock_video(filename):
+    """Stock clips do not need an audio track because narration is added later."""
+    if not nonempty(filename):
+        return False
+    try:
+        with VideoFileClip(str(filename)) as clip:
+            return math.isfinite(clip.duration) and clip.duration > 0
+    except Exception:
+        return False
+
+
 def fallback_cues(text, duration):
     words = text.split()
     groups = [' '.join(words[i:i + 12]) for i in range(0, len(words), 12)]
@@ -205,6 +216,15 @@ def motion_renderer(picture, size, entry, params):
     return frame
 
 
+def stock_renderer(clip, size):
+    """Fit a stock clip to the production canvas and loop it for narration."""
+    duration = max(.001, float(clip.duration))
+    def frame(t):
+        picture = Image.fromarray(clip.get_frame(float(t) % duration)).convert('RGB')
+        return np.asarray(ImageOps.fit(picture, size, method=Image.Resampling.LANCZOS))
+    return frame
+
+
 def frame_renderer(frame_supplier, entry, params):
     """Render moving frames and cache a captioned result for one frame bucket."""
     previous, rendered = None, None
@@ -260,7 +280,8 @@ def compose(entries, params, folder, progress=None, output_name='final.mp4', res
     limit = max(30., min(300., float(params.chunk_size_minutes or 5) * 60))
     batches, batch, duration = [], [], 0.
     for entry in entries:
-        if not valid_image(entry['image']) or not valid_audio(entry['audio']):
+        visual_is_valid = valid_stock_video(entry.get('stock_video')) or valid_image(entry.get('image'))
+        if not visual_is_valid or not valid_audio(entry['audio']):
             raise RuntimeError(f"Artefato ausente ou inválido na cena {entry['index'] + 1}.")
         if batch and (duration + entry['duration'] > limit or len(batch) >= 8):
             batches.append(batch); batch, duration = [], 0.
@@ -274,8 +295,13 @@ def compose(entries, params, folder, progress=None, output_name='final.mp4', res
         resources, clips = [], []
         try:
             for entry in batch:
-                with Image.open(entry['image']) as picture:
-                    renderer = motion_renderer(picture, size, entry, params)
+                if valid_stock_video(entry.get('stock_video')):
+                    stock_clip = VideoFileClip(entry['stock_video'])
+                    resources.append(stock_clip)
+                    renderer = stock_renderer(stock_clip, size)
+                else:
+                    with Image.open(entry['image']) as picture:
+                        renderer = motion_renderer(picture, size, entry, params)
                 audio = AudioFileClip(entry['audio'])
                 resources.append(audio)
                 scene = VideoClip(frame_renderer(renderer, entry, params), duration=entry['duration']).with_audio(audio)

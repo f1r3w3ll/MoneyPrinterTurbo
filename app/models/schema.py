@@ -420,6 +420,9 @@ class LongFormVideoParams(VideoParams):
     image_provider: Optional[str] = "dalle"  # dalle, sd (midjourney reserved, not implemented)
     image_quality: Optional[str] = "standard"  # standard, hd
     image_size: Optional[str] = "1024x1024"
+    # Visual source: AI images, free stock clips, or a cost-saving combination.
+    visual_mode: str = "ai"  # ai, stock, hybrid
+    stock_provider: str = "pexels"  # pexels, pixabay, coverr
 
     # Premium TTS
     premium_tts_provider: Optional[str] = None  # elevenlabs implemented; playht/murf reserved, not implemented

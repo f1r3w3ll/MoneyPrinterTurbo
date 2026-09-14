@@ -626,3 +626,21 @@ O gerador original foi preservado.
   `output_format=png`; modelos SDXL legados preservam os parâmetros anteriores.
   A alteração foi verificada apenas com metadados e testes locais, sem consumir
   créditos com geração de imagem.
+
+## Biblioteca de clipes gratuitos — 14/09/2026
+
+- O Estúdio passou a oferecer três fontes visuais por produção: **Imagens por
+  IA**, **Clipes gratuitos** e **Híbrido · clipes + IA**. O modo híbrido usa
+  clipes em duas de cada três cenas para conter custo sem perder imagens
+  específicas nas demais; produções anteriores preservam o padrão de imagens
+  por IA.
+- Pexels, Pixabay e Coverr usam as integrações já existentes do gerador
+  original. A chave de cada biblioteca é gravada somente em `config.toml` por
+  Configurações, nunca em parâmetros ou checkpoints. A validação bloqueia a
+  produção antes de custo se a chave da fonte selecionada não estiver salva.
+- O pipeline baixa cada clipe para `stock/` dentro da pasta da produção e salva
+  provedor, URL, duração de origem e termo pesquisado em `artifacts.json`.
+  Retomadas reutilizam clipes válidos. A composição aceita clipes sem áudio,
+  repete-os quando a narração é maior e aplica a narração/legendas normalmente.
+- Uma busca sem resultado interrompe a cena com mensagem explícita, em vez de
+  trocar silenciosamente para geração por IA e criar custo inesperado.

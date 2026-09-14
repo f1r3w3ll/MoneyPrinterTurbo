@@ -63,6 +63,44 @@ class StudioTests(unittest.TestCase):
 
         self.assertTrue(params.animated_intro)
 
+    def test_longform_params_keep_stock_visual_source_choice(self):
+        params = LongFormVideoParams(
+            video_subject='Teste', visual_mode='hybrid', stock_provider='pexels',
+        )
+
+        self.assertEqual(params.visual_mode, 'hybrid')
+        self.assertEqual(params.stock_provider, 'pexels')
+
+    def test_stock_mode_requires_the_selected_stock_provider_key(self):
+        from app.services.studio_settings import validate_settings
+        settings = {
+            'image_generation': {'openai_configured': False, 'sd_configured': False},
+            'premium_tts': {'elevenlabs_configured': False},
+            'stock': {'pexels_configured': False, 'pixabay_configured': False, 'coverr_configured': False},
+        }
+        params = LongFormVideoParams(video_subject='Teste', visual_mode='stock', stock_provider='pexels')
+        with patch('app.services.studio_settings.get_settings', return_value=settings):
+            errors = validate_settings(params)
+
+        self.assertIn('Configure uma chave Pexels para usar clipes gratuitos.', errors)
+
+    def test_stock_search_falls_back_to_another_configured_library(self):
+        from app.services import studio_stock
+        from app.models.schema import MaterialInfo
+        scene = SimpleNamespace(index=0, image_prompt='A modern data center', visual_function='')
+        params = LongFormVideoParams(video_subject='Teste', visual_mode='stock', stock_provider='pexels', video_aspect='16:9')
+        pexels = Mock(return_value=[])
+        pixabay = Mock(return_value=[MaterialInfo(provider='pixabay', url='https://stock.example/video.mp4', duration=8)])
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, \
+             patch.object(studio_stock, '_SEARCHERS', {'pexels': pexels, 'pixabay': pixabay}), \
+             patch.object(studio_stock.material, 'save_video', return_value=str(Path(tmp) / 'clip.mp4')), \
+             patch.object(studio_stock, 'valid_stock_video', return_value=True):
+            result = studio_stock.fetch_scene_clip(scene, params, tmp)
+
+        self.assertEqual(result['provider'], 'pixabay')
+        pexels.assert_called_once()
+        pixabay.assert_called_once()
+
     def test_production_submission_serializes_animated_intro(self):
         from app.services import studio
         from webui.studio import build_production_params
