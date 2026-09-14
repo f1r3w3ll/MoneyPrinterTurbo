@@ -413,6 +413,19 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(Path(result).read_bytes(), b'image bytes' * 128)
             self.assertEqual(generated.call_args.kwargs['quality'], 'medium')
 
+    def test_sd35_uses_its_current_replicate_input_schema(self):
+        from app.services.image_generation import stable_diffusion_input
+
+        payload = stable_diffusion_input(
+            'stability-ai/stable-diffusion-3.5-large', 'A precise documentary illustration.',
+            width=1792, height=1024,
+        )
+        self.assertEqual(payload['prompt'], 'A precise documentary illustration.')
+        self.assertEqual(payload['aspect_ratio'], '16:9')
+        self.assertEqual(payload['output_format'], 'png')
+        self.assertNotIn('width', payload)
+        self.assertNotIn('num_outputs', payload)
+
     def test_claude_client_uses_official_base_url_when_endpoint_is_empty(self):
         from app.services import script_generator
         from app.services.script_generator import ScriptGeneratorService

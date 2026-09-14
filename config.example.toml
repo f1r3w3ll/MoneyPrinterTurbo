@@ -405,9 +405,9 @@ dalle_model = "gpt-image-1"
 dalle_quality = "medium"      # low, medium, high or auto
 dalle_size = "1024x1024"      # 1024x1024, 1024x1536, 1536x1024 or auto
 
-# Stable Diffusion Configuration (via Replicate API or local deployment)
+# Stable Diffusion Configuration (via Replicate API in this build)
 sd_api_key = ""
-sd_model = "stability-ai/sdxl"
+sd_model = "stability-ai/stable-diffusion-3.5-large"
 sd_base_url = "https://api.replicate.com"
 
 # Midjourney Configuration (reserved)

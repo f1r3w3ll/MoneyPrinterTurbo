@@ -615,3 +615,14 @@ O gerador original foi preservado.
 - A geração usa o mesmo parser, orçamento de duração, editor, persistência e
   pipeline de produção da via normal. O material colado é delimitado como
   referência, e comandos internos são ignorados pelo prompt.
+
+## Replicate Stable Diffusion — 14/09/2026
+
+- A chave Replicate foi validada por `GET /v1/account` sem inferência. O modelo
+  configurado anteriormente, `stability-ai/sdxl`, permanecia visível no catálogo
+  mas retornava `404` na execução. O padrão e a configuração local foram
+  atualizados para `stability-ai/stable-diffusion-3.5-large`.
+- O serviço agora adapta a requisição: SD 3.5 recebe `prompt`, `aspect_ratio` e
+  `output_format=png`; modelos SDXL legados preservam os parâmetros anteriores.
+  A alteração foi verificada apenas com metadados e testes locais, sem consumir
+  créditos com geração de imagem.

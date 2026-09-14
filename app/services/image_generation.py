@@ -21,6 +21,27 @@ from loguru import logger
 from app.config import config
 
 
+DEFAULT_REPLICATE_SD_MODEL = 'stability-ai/stable-diffusion-3.5-large'
+
+
+def stable_diffusion_input(model: str, prompt: str, width: int = 1024, height: int = 1024) -> dict:
+    """Adapt the image request to the input schema of the configured model."""
+    normalized = str(model or '').split(':', 1)[0]
+    if normalized == DEFAULT_REPLICATE_SD_MODEL:
+        ratio = width / height if height else 1
+        aspect_ratio = min(
+            {'1:1': 1, '16:9': 16 / 9, '9:16': 9 / 16},
+            key=lambda label: abs({'1:1': 1, '16:9': 16 / 9, '9:16': 9 / 16}[label] - ratio),
+        )
+        return {'prompt': prompt, 'aspect_ratio': aspect_ratio, 'output_format': 'png'}
+    return {
+        'prompt': prompt,
+        'width': width,
+        'height': height,
+        'num_outputs': 1,
+    }
+
+
 def _image_http_client():
     """Trust the OS certificate store without disabling HTTPS verification."""
     context = ssl.create_default_context()
@@ -298,7 +319,7 @@ class ImageGenerationService:
             raise ValueError("Stable Diffusion API key not configured")
 
         model = config.image_generation.get(
-            "sd_model", "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b"
+            "sd_model", DEFAULT_REPLICATE_SD_MODEL
         )
 
         logger.debug(f"Stable Diffusion request: model={model}")
@@ -306,12 +327,7 @@ class ImageGenerationService:
         # Generate image
         output = replicate.Client(api_token=api_key).run(
             model,
-            input={
-                "prompt": prompt,
-                "width": 1024,
-                "height": 1024,
-                "num_outputs": 1,
-            },
+            input=stable_diffusion_input(model, prompt),
         )
 
         # Download image (output is a list of URLs)

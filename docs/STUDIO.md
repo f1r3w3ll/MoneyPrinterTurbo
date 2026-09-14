@@ -37,8 +37,10 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
 
 ## Serviços e duração
 
-- Imagens: DALL-E/OpenAI ou Stable Diffusion via Replicate. Midjourney não é
-  oferecido porque sua implementação ainda não existe.
+- Imagens: DALL-E/OpenAI ou Stable Diffusion 3.5 Large via Replicate. O
+  Replicate executa o modelo na nuvem e requer créditos; uma instalação local
+  de ComfyUI ainda não está ligada a esta tela. Midjourney não é oferecido
+  porque sua implementação ainda não existe.
 - Voz: Edge TTS em português, inglês ou espanhol; ElevenLabs quando chave e
   identificador de voz estiverem configurados. Play.ht e Murf não são oferecidos.
 - A duração final é medida pelo áudio de cada cena. A estimativa do roteiro

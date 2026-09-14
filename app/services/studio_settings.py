@@ -20,7 +20,7 @@ def get_settings():
             llm[name].update(api_key='', configured=bool(item.get('api_key')))
         image = {key: config.image_generation.get(key, default) for key, default in
                  [('default_provider', 'dalle'), ('dalle_quality', 'standard'),
-                  ('dalle_size', '1024x1024'), ('sd_model', 'stability-ai/sdxl')]}
+                  ('dalle_size', '1024x1024'), ('sd_model', 'stability-ai/stable-diffusion-3.5-large')]}
         image.update(openai_api_key='', sd_api_key='',
             openai_configured=bool(config.image_generation.get('openai_api_key') or config.app.get('openai_api_key') or config.llm.get('openai', {}).get('api_key')),
             sd_configured=bool(config.image_generation.get('sd_api_key')))
