@@ -57,7 +57,10 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
 - A composição aplica movimento às imagens e as transições do roteiro, com
   áudio e legendas por cena. A abertura animada intensifica o movimento inicial.
   A aba Publicação permite enviar o resultado ao YouTube pela WoopSocial.
-  Não há editor de timeline ou música de fundo nesta tela.
+  Depois da entrega confirmada, a cópia temporária do MP4 na biblioteca
+  WoopSocial é removida automaticamente para liberar a cota do plano. Isso
+  não remove o MP4 local nem o vídeo publicado no YouTube. Não há editor de
+  timeline ou música de fundo nesta tela.
 - O CTA preserva as dimensões do vídeo, inclusive em retrato, e sua duração
   entra no total informado. A composição base é preservada em arquivo separado:
   se o CTA falhar, a retomada reutiliza essa base; se a thumbnail falhar, reutiliza

@@ -644,3 +644,14 @@ O gerador original foi preservado.
   repete-os quando a narração é maior e aplica a narração/legendas normalmente.
 - Uma busca sem resultado interrompe a cena com mensagem explícita, em vez de
   trocar silenciosamente para geração por IA e criar custo inesperado.
+
+## Cota de mídia WoopSocial — 14/09/2026
+
+- O erro `storage limit exceeded` na abertura de uma sessão ocorre antes do
+  upload e informa uso, tamanho solicitado e limite do plano. Ele é uma cota
+  da biblioteca WoopSocial, não falha do MP4 ou do envio em partes.
+- Publicações novas enviam `autoDeleteMediaAfterPublish: true`. Depois de a
+  entrega ao YouTube concluir com êxito, a WoopSocial remove apenas sua cópia
+  temporária, preservando o vídeo no YouTube e os artefatos locais. Mídias que
+  já ocupavam a biblioteca precisam ser apagadas no painel/gerenciador com
+  autorização explícita, pois a remoção é permanente.

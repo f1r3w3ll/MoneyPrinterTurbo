@@ -681,6 +681,7 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(request.call_args_list[0].kwargs['params'], {'projectId': 'project-1'})
             payload = request.call_args_list[1].kwargs['json']
             self.assertEqual(payload['schedule'], {'type': 'PUBLISH_NOW'})
+            self.assertTrue(payload['autoDeleteMediaAfterPublish'])
             self.assertEqual(payload['socialAccounts'][0], {'platform': 'YOUTUBE', 'socialAccountId': 'account-1', 'title': 'Title', 'privacy': 'private'})
             self.assertEqual(request.call_args_list[1].args[0], f'{woopsocial.BASE_URL}/posts/validate')
             self.assertEqual(request.call_args_list[2].args[0], f'{woopsocial.BASE_URL}/posts')

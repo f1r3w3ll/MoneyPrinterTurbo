@@ -175,7 +175,7 @@ def publish(video_path, project_id, account_id, title, description, privacy, sch
     if tags:
         youtube_target['tags'] = [str(tag).strip() for tag in tags if str(tag).strip()]
     body = {'content': [{'text': description, 'media': [{'type': 'MEDIA_LIBRARY', 'mediaId': media_id}]}], 'schedule': schedule,
-            'socialAccounts': [youtube_target]}
+            'socialAccounts': [youtube_target], 'autoDeleteMediaAfterPublish': True}
     headers = {**_headers(), 'Content-Type': 'application/json'}
     _report_upload_progress(progress, path.stat().st_size, path.stat().st_size, 'Criando publicação')
     validation = requests.post(f'{BASE_URL}/posts/validate', headers=headers, json=body, timeout=60)
