@@ -663,6 +663,16 @@ class StudioTests(unittest.TestCase):
              patch('app.services.woopsocial._headers', return_value={}):
             self.assertEqual(woopsocial.youtube_accounts(), [{'id': 'youtube-1', 'platform': 'YOUTUBE', 'name': 'Canal'}])
 
+    def test_woopsocial_filters_youtube_accounts_by_selected_project(self):
+        from app.services import woopsocial
+        response = Mock()
+        response.json.return_value = [{'id': 'youtube-1', 'platform': 'YOUTUBE', 'name': 'Canal'}]
+        with patch('app.services.woopsocial.requests.get', return_value=response) as request, \
+             patch('app.services.woopsocial._headers', return_value={}):
+            woopsocial.youtube_accounts('project-1')
+
+        self.assertEqual(request.call_args.kwargs['params'], {'projectId': 'project-1'})
+
     def test_woopsocial_uses_username_as_channel_label(self):
         from app.services import woopsocial
         self.assertEqual(woopsocial.account_label({'id': '171275273835118592', 'username': 'No One Wrote It Down'}), 'No One Wrote It Down')

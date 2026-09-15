@@ -61,6 +61,9 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
   WoopSocial é removida automaticamente para liberar a cota do plano. Isso
   não remove o MP4 local nem o vídeo publicado no YouTube. Não há editor de
   timeline ou música de fundo nesta tela.
+- Depois de escolher o projeto WoopSocial, a lista passa a mostrar apenas seus
+  canais do YouTube. O botão repete o nome do canal de destino para revisão
+  antes do envio.
 - O CTA preserva as dimensões do vídeo, inclusive em retrato, e sua duração
   entra no total informado. A composição base é preservada em arquivo separado:
   se o CTA falhar, a retomada reutiliza essa base; se a thumbnail falhar, reutiliza

@@ -1041,15 +1041,25 @@ Script: {json.dumps(project['script'], ensure_ascii=False)}"""
     try:
         from app.services import woopsocial
         available_projects = woopsocial.projects()
-        accounts = woopsocial.youtube_accounts()
     except Exception as exc:
         st.error(redact(exc)); return
     if not available_projects:
         st.error('Nenhum projeto WoopSocial disponível para a chave configurada.')
         return
-    project = st.selectbox('Projeto WoopSocial', available_projects, format_func=lambda item: item.get('name') or item['id'])
-    account = st.selectbox('Canal do YouTube', accounts, format_func=woopsocial.account_label)
-    if st.button('Publicar no YouTube', type='primary', key=f'publish_{selected["id"]}'):
+    project = st.selectbox('Projeto WoopSocial', available_projects,
+                           format_func=lambda item: item.get('name') or item['id'], key=f'woop_project_{selected["id"]}')
+    try:
+        accounts = woopsocial.youtube_accounts(project['id'])
+    except Exception as exc:
+        st.error(redact(exc)); return
+    if not accounts:
+        st.error('Nenhum canal do YouTube está conectado ao projeto WoopSocial selecionado.')
+        return
+    account = st.selectbox('Canal do YouTube', accounts, format_func=woopsocial.account_label,
+                           key=f'woop_account_{selected["id"]}')
+    destination = woopsocial.account_label(account)
+    st.info(f'Destino da publicação: **{destination}**')
+    if st.button(f'Publicar no YouTube: {destination}', type='primary', key=f'publish_{selected["id"]}'):
         try:
             upload_progress = st.progress(0, text='Preparando publicação…')
 

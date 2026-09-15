@@ -37,8 +37,9 @@ def _ensure_success(response, action):
         raise ValueError(f'WoopSocial recusou {action}: {detail}') from exc
 
 
-def youtube_accounts():
-    response = requests.get(f'{BASE_URL}/social-accounts', headers=_headers(), timeout=30)
+def youtube_accounts(project_id=None):
+    params = {'projectId': project_id} if project_id else None
+    response = requests.get(f'{BASE_URL}/social-accounts', headers=_headers(), params=params, timeout=30)
     _ensure_success(response, 'a lista de canais')
     payload = response.json()
     values = payload.get('data', payload) if isinstance(payload, dict) else payload

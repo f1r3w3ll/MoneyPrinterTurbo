@@ -655,3 +655,15 @@ O gerador original foi preservado.
   temporária, preservando o vídeo no YouTube e os artefatos locais. Mídias que
   já ocupavam a biblioteca precisam ser apagadas no painel/gerenciador com
   autorização explícita, pois a remoção é permanente.
+
+## Destino do canal WoopSocial — 15/09/2026
+
+- A WoopSocial confirmou o vídeo `How The Origin of Electric Cars still affects
+  you` como `PUBLISHED` no canal **No One Wrote It Down**, não no Internet
+  Review. A requisição de publicação usou a conta No One Wrote It Down; não
+  houve remapeamento posterior pelo YouTube.
+- A tela agora consulta os canais com `projectId` depois que o projeto é
+  escolhido, guarda os widgets por produção e mostra o nome do destino no botão
+  antes do envio. Isso elimina a ambiguidade da antiga lista global de contas.
+  Registros já arquivados não preservaram `publication.json`; manter esse
+  arquivo no arquivamento é uma melhoria futura de auditoria.
