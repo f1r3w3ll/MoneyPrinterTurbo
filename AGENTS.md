@@ -718,3 +718,17 @@ O gerador original foi preservado.
   todas retornem saldo esgotado, a cena usa clipe gratuito configurado e a
   produção persiste o evento em `artifacts.provider_fallbacks`, exibido no
   histórico. Outros erros não são mascarados por esse fallback.
+
+## Padrão Gemini e Pexels — 16/09/2026
+
+- Por decisão explícita do usuário, Gemini é o primeiro provedor oferecido para
+  pauta, roteiro, roteiro-base e descrição de publicação. Claude e DeepSeek
+  continuam como alternativas; OpenAI não é o padrão dessas telas.
+- O Estúdio usa Pexels como única fonte visual das novas produções. Cada cena
+  recebe um clipe Pexels e a thumbnail é renderizada localmente de um frame do
+  primeiro clipe. A busca não troca para Pixabay ou Coverr sem uma mudança de
+  produto posterior.
+- DALL-E foi removido dos controles do Estúdio e bloqueado no serviço de imagem.
+  Mesmo parâmetros antigos com `image_provider=dalle` falham antes de qualquer
+  chamada à OpenAI. Stable Diffusion persiste apenas como integração explícita
+  de API legada; a produção pela interface não a chama.

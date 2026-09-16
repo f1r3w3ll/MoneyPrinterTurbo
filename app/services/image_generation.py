@@ -78,13 +78,15 @@ class ImageGenerationService:
                      If None, uses config default.
         """
         self.provider = provider or config.image_generation.get(
-            "default_provider", "dalle"
+            "default_provider", "sd"
         )
         if self.provider == "midjourney":
             raise ValueError(
                 "Midjourney is not implemented in this build. Use 'dalle' or 'sd'."
             )
-        if self.provider not in ("dalle", "sd"):
+        if self.provider == "dalle":
+            raise ValueError("DALL-E está desativado no Estúdio. Use Pexels ou Stable Diffusion.")
+        if self.provider != "sd":
             raise ValueError(f"Unsupported image provider: {self.provider}")
         logger.info(f"Initialized ImageGenerationService with provider: {self.provider}")
 

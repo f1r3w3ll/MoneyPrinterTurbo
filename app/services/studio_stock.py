@@ -32,7 +32,9 @@ def fetch_scene_clip(scene, params, target_dir):
     target_dir = Path(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
     attempted = []
-    for candidate in (provider,) + tuple(name for name in _SEARCHERS if name != provider):
+    # Studio productions deliberately remain in the Pexels workflow. Do not
+    # substitute a different visual library without the user's choice.
+    for candidate in (provider,):
         try:
             clips = _SEARCHERS[candidate](term, minimum_duration=3, video_aspect=aspect)
         except Exception:

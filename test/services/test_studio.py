@@ -35,7 +35,7 @@ class StudioTests(unittest.TestCase):
         self.assertTrue(is_credit_exhausted(Exception("{'code': 'insufficient_quota', 'message': 'no credits remaining'}")))
         self.assertFalse(is_credit_exhausted(Exception('Error code: 429 - rate limit exceeded; retry later')))
 
-    def test_image_credit_exhaustion_uses_configured_stable_diffusion_next(self):
+    def test_dalle_is_never_selected_as_an_image_fallback(self):
         from app.services import longform_media
         from app.models.schema import SceneInfo
 
@@ -45,14 +45,12 @@ class StudioTests(unittest.TestCase):
                 self.provider = provider
             def generate_image(self, _prompt, _scene_id, output_dir, **_kwargs):
                 calls.append(self.provider)
-                if self.provider == 'dalle':
-                    raise Exception("{'code': 'credit_balance_exhausted'}")
                 target = Path(output_dir) / 'scene.png'
                 target.write_bytes(b'image')
                 return str(target)
 
         scene = SceneInfo(index=0, narration='Narration', image_prompt='A neutral city.')
-        params = LongFormVideoParams(video_subject='Test', image_provider='dalle')
+        params = LongFormVideoParams(video_subject='Test', image_provider='sd')
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, \
              patch('app.services.image_generation.ImageGenerationService', FakeImages), \
              patch.object(longform_media, 'valid_image', return_value=True), \
@@ -61,9 +59,22 @@ class StudioTests(unittest.TestCase):
              patch.object(longform_media.config, 'llm', {}):
             result = longform_media.generate_scene_image(scene, params, Path(tmp) / 'scene.png')
 
-        self.assertEqual(calls, ['dalle', 'sd'])
+        self.assertEqual(calls, ['sd'])
         self.assertEqual(result['provider'], 'sd')
-        self.assertEqual(result['unavailable_providers'], ['dalle'])
+        self.assertEqual(result['unavailable_providers'], [])
+
+    def test_studio_defaults_to_pexels_visuals(self):
+        params = LongFormVideoParams(video_subject='Teste')
+
+        self.assertEqual(params.visual_mode, 'stock')
+        self.assertEqual(params.stock_provider, 'pexels')
+        self.assertEqual(params.image_provider, 'sd')
+
+    def test_dalle_image_service_is_explicitly_blocked(self):
+        from app.services.image_generation import ImageGenerationService
+
+        with self.assertRaisesRegex(ValueError, 'DALL-E está desativado'):
+            ImageGenerationService('dalle')
 
     def test_channel_cta_is_persisted_with_each_profile(self):
         from app.services import editorial
@@ -121,7 +132,7 @@ class StudioTests(unittest.TestCase):
 
         self.assertIn('Configure uma chave Pexels para usar clipes gratuitos.', errors)
 
-    def test_stock_search_falls_back_to_another_configured_library(self):
+    def test_stock_search_does_not_switch_away_from_pexels(self):
         from app.services import studio_stock
         from app.models.schema import MaterialInfo
         scene = SimpleNamespace(index=0, image_prompt='A modern data center', visual_function='')
@@ -132,11 +143,11 @@ class StudioTests(unittest.TestCase):
              patch.object(studio_stock, '_SEARCHERS', {'pexels': pexels, 'pixabay': pixabay}), \
              patch.object(studio_stock.material, 'save_video', return_value=str(Path(tmp) / 'clip.mp4')), \
              patch.object(studio_stock, 'valid_stock_video', return_value=True):
-            result = studio_stock.fetch_scene_clip(scene, params, tmp)
+            with self.assertRaisesRegex(RuntimeError, 'Nenhum clipe gratuito'):
+                studio_stock.fetch_scene_clip(scene, params, tmp)
 
-        self.assertEqual(result['provider'], 'pixabay')
         pexels.assert_called_once()
-        pixabay.assert_called_once()
+        pixabay.assert_not_called()
 
     def test_production_submission_serializes_animated_intro(self):
         from app.services import studio
@@ -511,7 +522,7 @@ class StudioTests(unittest.TestCase):
             ('Homem · inglês', 'elevenlabs:wBXNqKUATyqu0RtYt25i'),
         ))
 
-    def test_gpt_image_response_is_saved_from_base64(self):
+    def test_gpt_image_response_is_blocked_before_the_client_is_created(self):
         from app.services import image_generation
         generated = Mock(return_value=SimpleNamespace(data=[SimpleNamespace(
             b64_json=base64.b64encode(b'image bytes' * 128).decode(),
@@ -524,13 +535,13 @@ class StudioTests(unittest.TestCase):
              patch.object(image_generation.config, 'image_generation', {
                  'openai_api_key': 'test', 'dalle_model': 'gpt-image-1'
              }), patch.object(image_generation.config, 'app', {}), patch.object(image_generation.config, 'llm', {}):
-            result = image_generation.ImageGenerationService('dalle').generate_image(
-                'uma imagem', 'scene-0', tmp, quality='standard', size='1024x1024'
-            )
-            self.assertEqual(Path(result).read_bytes(), b'image bytes' * 128)
-            self.assertEqual(generated.call_args.kwargs['quality'], 'medium')
+            with self.assertRaisesRegex(ValueError, 'DALL-E está desativado'):
+                image_generation.ImageGenerationService('dalle').generate_image(
+                    'uma imagem', 'scene-0', tmp, quality='standard', size='1024x1024'
+                )
+            generated.assert_not_called()
 
-    def test_gpt_image_retries_once_with_neutral_prompt_after_output_safety_block(self):
+    def test_gpt_image_safety_fallback_is_not_reachable_in_the_studio(self):
         from app.services import image_generation
 
         blocked = Exception("Error code: 400 - {'error': {'code': 'moderation_blocked', "
@@ -547,12 +558,11 @@ class StudioTests(unittest.TestCase):
              patch.object(image_generation.config, 'image_generation', {
                  'openai_api_key': 'test', 'dalle_model': 'gpt-image-1'
              }), patch.object(image_generation.config, 'app', {}), patch.object(image_generation.config, 'llm', {}):
-            result = image_generation.ImageGenerationService('dalle').generate_image(
-                'A violent historical event', 'scene-0', tmp,
-            )
-            self.assertTrue(Path(result).is_file())
-            self.assertEqual(generated.call_count, 2)
-            self.assertIn('neutral documentary visual', generated.call_args_list[1].kwargs['prompt'])
+            with self.assertRaisesRegex(ValueError, 'DALL-E está desativado'):
+                image_generation.ImageGenerationService('dalle').generate_image(
+                    'A violent historical event', 'scene-0', tmp,
+                )
+            generated.assert_not_called()
 
     def test_sd35_uses_its_current_replicate_input_schema(self):
         from app.services.image_generation import stable_diffusion_input

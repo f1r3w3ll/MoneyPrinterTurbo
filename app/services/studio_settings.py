@@ -19,10 +19,8 @@ def get_settings():
                 [('model', ''), ('base_url', ''), ('enabled', True)]}
             llm[name].update(api_key='', configured=bool(item.get('api_key')))
         image = {key: config.image_generation.get(key, default) for key, default in
-                 [('default_provider', 'dalle'), ('dalle_quality', 'standard'),
-                  ('dalle_size', '1024x1024'), ('sd_model', 'stability-ai/stable-diffusion-3.5-large')]}
-        image.update(openai_api_key='', sd_api_key='',
-            openai_configured=bool(config.image_generation.get('openai_api_key') or config.app.get('openai_api_key') or config.llm.get('openai', {}).get('api_key')),
+                 [('default_provider', 'sd'), ('sd_model', 'stability-ai/stable-diffusion-3.5-large')]}
+        image.update(sd_api_key='',
             sd_configured=bool(config.image_generation.get('sd_api_key')))
         tts = dict(elevenlabs_api_key='', elevenlabs_configured=bool(config.premium_tts.get('elevenlabs_api_key')),
                    elevenlabs_voice_id=config.premium_tts.get('elevenlabs_voice_id', ''),
@@ -61,10 +59,10 @@ def save_settings(values):
                 raise ValueError('Provedor de roteiro não suportado.')
             llm[provider] = _merge(llm.get(provider, {}), item, ('api_key', 'model', 'base_url', 'enabled'))
         image = _merge(config.image_generation, values.get('image_generation', {}),
-                       ('default_provider', 'openai_api_key', 'sd_api_key', 'sd_model', 'dalle_model', 'dalle_quality', 'dalle_size'))
+                       ('default_provider', 'sd_api_key', 'sd_model'))
         tts = _merge(config.premium_tts, values.get('premium_tts', {}),
                      ('elevenlabs_api_key', 'elevenlabs_voice_id', 'elevenlabs_model'))
-        if image.get('default_provider', 'dalle') not in ('dalle', 'sd'):
+        if image.get('default_provider', 'sd') != 'sd':
             raise ValueError('Provedor de imagens não implementado.')
         app = _merge(config.app, values.get('woopsocial', {}), ('woopsocial_api_key',))
         stock_values = values.get('stock', {})
@@ -108,15 +106,13 @@ def redact(message):
 def validate_settings(params):
     errors = []
     settings = get_settings()
-    visual_mode = getattr(params, 'visual_mode', 'ai')
+    visual_mode = getattr(params, 'visual_mode', 'stock')
     if visual_mode not in ('ai', 'stock', 'hybrid'):
         errors.append('Selecione uma fonte visual válida.')
     if visual_mode in ('ai', 'hybrid'):
-        if params.image_provider not in ('dalle', 'sd'):
-            errors.append('Selecione DALL-E ou Stable Diffusion para as imagens.')
-        elif params.image_provider == 'dalle' and not settings['image_generation']['openai_configured']:
-            errors.append('Configure a chave OpenAI para gerar imagens.')
-        elif params.image_provider == 'sd':
+        if params.image_provider != 'sd':
+            errors.append('O Estúdio está configurado para usar Pexels. Stable Diffusion é a única alternativa de imagem por IA disponível.')
+        else:
             if not settings['image_generation']['sd_configured']:
                 errors.append('Configure a chave do Replicate para Stable Diffusion.')
             if importlib.util.find_spec('replicate') is None:

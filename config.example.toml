@@ -396,9 +396,9 @@ upload_post_youtube_privacy_status = "public"
 ######################################################################################################
 
 [image_generation]
-# Default provider for AI image generation: dalle or sd (Stable Diffusion).
-# midjourney is reserved and not implemented in this build; selecting it fails fast.
-default_provider = "dalle"
+# Stable Diffusion is the optional AI-image provider. The Studio itself uses
+# Pexels clips and locally derived thumbnails by default, without image credits.
+default_provider = "sd"
 
 # DALL-E Configuration (uses existing openai_api_key from [app] section)
 dalle_model = "gpt-image-1"

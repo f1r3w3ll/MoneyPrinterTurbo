@@ -96,6 +96,10 @@ class StudioRenderTest(unittest.TestCase):
                 target = Path(output).with_suffix('.png')
                 Image.new('RGB', (1280, 720), '#185c78').save(target)
                 return str(target)
+            def thumbnail(_script, _params, folder, stock_video=None):
+                target = Path(folder) / 'thumbnail.jpg'
+                Image.new('RGB', (1280, 720), '#185c78').save(target)
+                return str(target)
             def compose(*args, **kwargs):
                 return longform_media.compose(*args, **kwargs, resolution=(320, 180), fps=12)
             with patch.object(studio, 'ROOT', root), patch.object(studio, '_manager'), \
@@ -103,9 +107,10 @@ class StudioRenderTest(unittest.TestCase):
                  patch.object(longform_pipeline, 'generate_scene_audio', side_effect=speech), \
                  patch.object(longform_pipeline, 'generate_scene_image', side_effect=picture), \
                  patch.object(longform_pipeline, 'compose', side_effect=compose), \
+                 patch.object(longform_pipeline, 'make_thumbnail', side_effect=thumbnail), \
                  patch.object(ThumbnailService, '_generate_base_image', side_effect=thumbnail_base):
                 params = LongFormVideoParams(video_subject='Teste sintético', structured_script=example_script(),
-                    video_aspect='16:9', bgm_type='', font_name='MicrosoftYaHeiBold.ttc', font_size=18)
+                    visual_mode='ai', image_provider='sd', video_aspect='16:9', bgm_type='', font_name='MicrosoftYaHeiBold.ttc', font_size=18)
                 identifier = studio.submit(params)
                 studio._run(identifier)
                 record = studio.get_production(identifier)

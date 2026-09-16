@@ -58,6 +58,9 @@ class ThumbnailService:
         """
         logger.info(f"Generating hybrid thumbnail: {output_path}")
 
+        if provider == 'dalle':
+            raise ValueError('DALL-E está desativado no Estúdio. Use um frame Pexels ou Stable Diffusion.')
+
         # Ensure output directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 

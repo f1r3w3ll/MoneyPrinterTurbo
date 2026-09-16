@@ -417,11 +417,13 @@ class LongFormVideoParams(VideoParams):
     use_structured_script: bool = False
 
     # Image generation
-    image_provider: Optional[str] = "dalle"  # dalle, sd (midjourney reserved, not implemented)
+    # The Studio uses Pexels material by default. Stable Diffusion remains an
+    # explicit legacy/API option; OpenAI image generation is not a Studio default.
+    image_provider: Optional[str] = "sd"
     image_quality: Optional[str] = "standard"  # standard, hd
     image_size: Optional[str] = "1024x1024"
     # Visual source: AI images, free stock clips, or a cost-saving combination.
-    visual_mode: str = "ai"  # ai, stock, hybrid
+    visual_mode: str = "stock"  # ai, stock, hybrid
     stock_provider: str = "pexels"  # pexels, pixabay, coverr
 
     # Premium TTS

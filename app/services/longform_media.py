@@ -117,16 +117,12 @@ def generate_scene_audio(scene, params, target):
 
 
 def _configured_image_providers(preferred):
-    """Return the selected provider followed by configured image alternatives."""
-    preferred = str(preferred or 'dalle')
-    candidates = [preferred]
-    openai_ready = bool(config.image_generation.get('openai_api_key') or config.app.get('openai_api_key')
-                        or config.llm.get('openai', {}).get('api_key'))
+    """Return configured non-OpenAI image providers for legacy AI productions."""
+    preferred = str(preferred or 'sd')
+    candidates = []
     sd_ready = bool(config.image_generation.get('sd_api_key'))
-    if preferred != 'sd' and sd_ready:
+    if preferred == 'sd' and sd_ready:
         candidates.append('sd')
-    if preferred != 'dalle' and openai_ready:
-        candidates.append('dalle')
     return candidates
 
 
@@ -148,6 +144,8 @@ def generate_scene_image(scene, params, target):
                 raise
             unavailable.append(provider)
             last_error = exc
+    if not _configured_image_providers(params.image_provider):
+        raise RuntimeError('Imagens por IA não estão disponíveis. Use o modo Pexels para não consumir créditos de imagem.')
     names = ', '.join(unavailable) or str(params.image_provider)
     raise RuntimeError(f'As fontes de imagem estão sem créditos: {names}.') from last_error
 
@@ -485,14 +483,12 @@ def make_thumbnail(script, params, folder, stock_video=None):
     title = params.thumbnail_text or script.title
     target = str(Path(folder) / 'thumbnail.jpg')
     style = params.thumbnail_style if params.thumbnail_style in ('dramatic', 'clean', 'colorful') else 'dramatic'
-    if getattr(params, 'visual_mode', 'ai') == 'stock':
-        if not stock_video:
-            raise RuntimeError('Não há clipe disponível para criar a thumbnail desta produção Pexels.')
+    # Prefer a licensed stock frame whenever available. This keeps the Studio
+    # thumbnail entirely inside the Pexels workflow, including legacy records.
+    if stock_video:
         result = service.generate_thumbnail_from_video(stock_video, title, target, style)
     else:
-        result = service.generate_hybrid_thumbnail(
-            video_title=title, ai_image_prompt=script.scenes[0].image_prompt,
-            output_path=target, style=style, provider=params.image_provider)
+        raise RuntimeError('Não há clipe Pexels disponível para criar a thumbnail. Gere novamente usando a fonte visual Pexels.')
     if not valid_image(result):
         raise RuntimeError('A thumbnail não foi gerada corretamente.')
     return result

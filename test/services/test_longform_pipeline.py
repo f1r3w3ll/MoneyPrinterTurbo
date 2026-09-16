@@ -77,7 +77,8 @@ class LongformTests(unittest.TestCase):
         from app.services import longform_pipeline as pipeline
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             folder = Path(tmp)
-            params = LongFormVideoParams(video_subject='Teste', structured_script=example_script())
+            params = LongFormVideoParams(video_subject='Teste', structured_script=example_script(),
+                                         visual_mode='ai', image_provider='sd')
             entries = {str(i): dict(index=i, audio='old.mp3', image='old.png', duration=3., cues=[]) for i in range(5)}
             entries['0']['audio'] = None
             entries['1']['image'] = None
@@ -162,7 +163,7 @@ class LongformTests(unittest.TestCase):
         with TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             folder = Path(tmp)
             params = LongFormVideoParams(video_subject='Teste', structured_script=example_script(),
-                                         visual_mode='ai', stock_provider='pexels')
+                visual_mode='ai', image_provider='sd', stock_provider='pexels')
             def audio(scene, _params, target):
                 Path(target).write_bytes(b'audio')
                 return {'path': str(target), 'duration': 3., 'cues': []}
@@ -170,7 +171,7 @@ class LongformTests(unittest.TestCase):
                 return {'path': f'clip-{scene.index}.mp4', 'provider': 'pexels',
                         'source_url': f'https://video.example/{scene.index}', 'search_term': 'technology'}
             with patch.object(pipeline, 'generate_scene_audio', side_effect=audio), \
-                 patch.object(pipeline, 'generate_scene_image', side_effect=RuntimeError('As fontes de imagem estão sem créditos: dalle, sd.')), \
+                 patch.object(pipeline, 'generate_scene_image', side_effect=RuntimeError('As fontes de imagem estão sem créditos: sd.')), \
                  patch.object(pipeline, 'fetch_scene_clip', side_effect=stock) as clips, \
                  patch.object(pipeline, 'valid_audio', side_effect=bool), \
                  patch.object(pipeline, 'valid_image', return_value=False), \
@@ -191,6 +192,7 @@ class LongformTests(unittest.TestCase):
         with TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             folder = Path(tmp)
             params = LongFormVideoParams(video_subject='Teste', structured_script=example_script(),
+                                         visual_mode='ai', image_provider='sd',
                                          voice_name='pt-BR-FranciscaNeural', video_aspect='16:9')
             def audio(scene, params, target):
                 Path(target).write_bytes(b'audio')
@@ -308,7 +310,7 @@ class LongformTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             folder = Path(tmp)
             params = LongFormVideoParams(
-                video_subject='Teste', structured_script=example_script(), cta_mode='text',
+                video_subject='Teste', structured_script=example_script(), visual_mode='ai', image_provider='sd', cta_mode='text',
                 cta_text='Subscribe', bgm_type='',
             )
             params.structured_script.scenes[0].transition = 'fade'

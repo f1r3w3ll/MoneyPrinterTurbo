@@ -29,26 +29,26 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
 3. Edite título, descrição, narração e descrição de imagem de cada cena.
    Use **Salvar roteiro** antes de produzir. É possível adicionar/remover cenas,
    exportar JSON e reabrir rascunhos salvos.
-4. Escolha a fonte visual, voz, formato, legendas e estilo da thumbnail. Clique em
-   **Gerar vídeo completo**. Chamadas externas podem consumir créditos.
+4. Escolha voz, formato, legendas e estilo da thumbnail. A produção usa Pexels
+   para os clipes e cria a thumbnail a partir de um frame desse material. Clique
+   em **Gerar vídeo completo**.
 5. Em **Produções**, acompanhe as etapas. Use **Atualizar histórico** para
    carregar o resultado final, abrir o player e baixar MP4, thumbnail, roteiro
    e SRT quando as legendas estiverem habilitadas.
 
 ## Serviços e duração
 
-- Imagens: DALL-E/OpenAI ou Stable Diffusion 3.5 Large via Replicate. O
-  Replicate executa o modelo na nuvem e requer créditos; uma instalação local
-  de ComfyUI ainda não está ligada a esta tela. Midjourney não é oferecido
-  porque sua implementação ainda não existe.
-- Clipes gratuitos: Pexels, Pixabay e Coverr podem ser selecionados como fonte
-  visual. Cada biblioteca exige sua própria chave de API, inserida em
-  **Configurações**. O modo **Clipes gratuitos** usa somente esses vídeos; o
-  modo **Híbrido** usa clipes em duas de cada três cenas e imagens por IA nas
-  demais. A produção salva a fonte, URL e termo de busca de cada clipe em
-  `artifacts.json`, além do arquivo baixado na própria pasta da produção. Um
-  clipe indisponível interrompe a produção antes da composição; a retomada
-  reutiliza os clipes que já foram baixados.
+- Roteiro, pauta e descrição: Gemini é o padrão. Claude e DeepSeek continuam
+  disponíveis como alternativas configuráveis. OpenAI segue disponível somente
+  se for escolhida de propósito para texto; não é usada pelo fluxo padrão.
+- Visual: o Estúdio usa exclusivamente Pexels para os clipes e cria a thumbnail
+  a partir de um frame do primeiro clipe. Portanto, cenas e thumbnails não
+  fazem chamadas a DALL·E/OpenAI nem a qualquer API de geração de imagem. Cada
+  clipe salva sua fonte, URL e termo de busca em `artifacts.json`, além do
+  arquivo baixado na pasta da produção. Um clipe indisponível interrompe a
+  produção antes da composição; a retomada reutiliza os clipes já baixados.
+- Stable Diffusion 3.5 Large via Replicate permanece apenas para chamadas de
+  API legadas que peçam imagem por IA de forma explícita; requer créditos.
 - Voz: Edge TTS em português, inglês ou espanhol; ElevenLabs quando chave e
   identificador de voz estiverem configurados. Play.ht e Murf não são oferecidos.
 - A duração final é medida pelo áudio de cada cena. A estimativa do roteiro
@@ -61,11 +61,9 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
   WoopSocial é removida automaticamente para liberar a cota do plano. Isso
   não remove o MP4 local nem o vídeo publicado no YouTube. Não há editor de
   timeline ou música de fundo nesta tela.
-- Com a fonte visual **Clipes gratuitos**, as cenas usam a biblioteca escolhida
-  e a thumbnail é criada localmente a partir de um frame do primeiro clipe,
-  com o texto configurado. Esse modo não chama OpenAI/DALL-E para imagens ou
-  thumbnail. O modo híbrido continua usando IA nas cenas previstas e na
-  thumbnail, conforme o provedor selecionado.
+- As cenas usam Pexels e a thumbnail é criada localmente a partir de um frame
+  do primeiro clipe, com o texto configurado. O Estúdio bloqueia DALL·E para
+  evitar cobranças acidentais de créditos OpenAI.
 - Depois de escolher o projeto WoopSocial, a lista passa a mostrar apenas seus
   canais do YouTube. O botão repete o nome do canal de destino para revisão
   antes do envio.
