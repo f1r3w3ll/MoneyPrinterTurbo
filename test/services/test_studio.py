@@ -28,6 +28,43 @@ class StudioTests(unittest.TestCase):
             context.load_verify_locations.assert_called_once_with(cadata='pem')
             client.assert_called_once_with(verify=context, timeout=600)
 
+    def test_credit_exhaustion_is_distinguished_from_a_generic_rate_limit(self):
+        from app.services.provider_errors import is_credit_exhausted
+
+        self.assertTrue(is_credit_exhausted(Exception("Error code: 429 - {'code': 'credit_balance_exhausted'}")))
+        self.assertTrue(is_credit_exhausted(Exception("{'code': 'insufficient_quota', 'message': 'no credits remaining'}")))
+        self.assertFalse(is_credit_exhausted(Exception('Error code: 429 - rate limit exceeded; retry later')))
+
+    def test_image_credit_exhaustion_uses_configured_stable_diffusion_next(self):
+        from app.services import longform_media
+        from app.models.schema import SceneInfo
+
+        calls = []
+        class FakeImages:
+            def __init__(self, provider):
+                self.provider = provider
+            def generate_image(self, _prompt, _scene_id, output_dir, **_kwargs):
+                calls.append(self.provider)
+                if self.provider == 'dalle':
+                    raise Exception("{'code': 'credit_balance_exhausted'}")
+                target = Path(output_dir) / 'scene.png'
+                target.write_bytes(b'image')
+                return str(target)
+
+        scene = SceneInfo(index=0, narration='Narration', image_prompt='A neutral city.')
+        params = LongFormVideoParams(video_subject='Test', image_provider='dalle')
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, \
+             patch('app.services.image_generation.ImageGenerationService', FakeImages), \
+             patch.object(longform_media, 'valid_image', return_value=True), \
+             patch.object(longform_media.config, 'image_generation', {'sd_api_key': 'test'}), \
+             patch.object(longform_media.config, 'app', {}), \
+             patch.object(longform_media.config, 'llm', {}):
+            result = longform_media.generate_scene_image(scene, params, Path(tmp) / 'scene.png')
+
+        self.assertEqual(calls, ['dalle', 'sd'])
+        self.assertEqual(result['provider'], 'sd')
+        self.assertEqual(result['unavailable_providers'], ['dalle'])
+
     def test_channel_cta_is_persisted_with_each_profile(self):
         from app.services import editorial
 
@@ -357,6 +394,48 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(script.metadata['target_scene_count'], 48)
         self.assertEqual(model, 'gpt-4o')
         self.assertEqual(tokens, 400)
+
+    def test_script_credit_exhaustion_uses_next_configured_text_provider(self):
+        from app.models.schema import ScriptGenerationRequest
+        from app.services.script_generator import ScriptGeneratorService
+
+        generator = ScriptGeneratorService()
+        generator.llm_configs = {
+            'openai': {'api_key': 'openai', 'enabled': True},
+            'gemini': {'api_key': 'gemini', 'enabled': True},
+            'claude': {}, 'deepseek': {},
+        }
+        response = json.dumps({
+            'title': 'AI infrastructure', 'description': 'Description', 'total_duration_estimate': 300,
+            'scenes': [dict(index=index, narration='A complete scene narration with enough detail for testing.', image_prompt='Detailed documentary image') for index in range(5)],
+        })
+        with patch.object(generator, '_generate_openai', side_effect=Exception("{'code': 'credit_balance_exhausted'}")), \
+             patch.object(generator, '_generate_gemini', return_value=(response, 'gemini-test', 10)):
+            script, model, _, _ = generator.generate_script(
+                ScriptGenerationRequest(topic='AI infrastructure', duration_minutes=5, num_scenes=5, language='en-US')
+            )
+
+        self.assertEqual(model, 'gemini-test')
+        self.assertEqual(script.metadata['provider_fallbacks'], [
+            {'phase': 'script', 'unavailable': 'openai', 'replacement': 'gemini'}
+        ])
+
+    def test_editorial_generation_uses_next_text_provider_when_openai_has_no_credit(self):
+        from app.services.script_generator import ScriptGeneratorService
+
+        generator = ScriptGeneratorService()
+        generator.llm_configs = {
+            'openai': {'api_key': 'openai', 'enabled': True},
+            'gemini': {'api_key': 'gemini', 'enabled': True},
+        }
+        with patch.object(generator, '_generate_openai', side_effect=Exception("{'code': 'insufficient_quota'}")), \
+             patch.object(generator, '_generate_gemini', return_value=('{"description":"ok"}', 'gemini-test', 10)):
+            content = generator.generate_editorial_json('openai', 'Return JSON.')
+
+        self.assertEqual(content, '{"description":"ok"}')
+        self.assertEqual(generator.last_provider_fallbacks, [
+            {'phase': 'editorial', 'unavailable': 'openai', 'replacement': 'gemini'}
+        ])
 
     def test_longform_script_retries_one_incomplete_batch_once(self):
         from app.models.schema import ScriptGenerationRequest

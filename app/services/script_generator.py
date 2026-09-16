@@ -21,6 +21,7 @@ from app.models.schema import (
 )
 from app.config import config
 from app.services.script_parser import ScriptParser
+from app.services.provider_errors import is_credit_exhausted
 
 
 def _anthropic_http_client():
@@ -43,6 +44,7 @@ class ScriptGeneratorService:
 
     def __init__(self):
         self.llm_configs = self._load_llm_configs()
+        self.last_provider_fallbacks = []
 
     def _load_llm_configs(self) -> Dict:
         """Load LLM configurations from config"""
@@ -66,31 +68,53 @@ class ScriptGeneratorService:
         """
         start_time = time.time()
 
-        provider = request.llm_provider.value
-        logger.info(f"Generating script with {provider} for topic: {request.topic}")
+        preferred = request.llm_provider.value
+        preferred_config = self.llm_configs.get(preferred, {})
+        if not preferred_config or not preferred_config.get('api_key'):
+            raise ValueError(f"LLM provider {preferred} not configured or missing API key")
+        if not preferred_config.get('enabled', True):
+            raise ValueError(f'O provedor {preferred} está desabilitado nas configurações.')
+        unavailable = []
+        last_error = None
+        for provider in self._configured_provider_candidates(preferred):
+            attempt = request.model_copy(update={'llm_provider': LLMProvider(provider)})
+            logger.info(f"Generating script with {provider} for topic: {request.topic}")
+            llm_config = self.llm_configs.get(provider, {})
+            target_scenes = self._target_scene_count(attempt)
+            try:
+                if target_scenes > 12:
+                    script, model, tokens = self._generate_script_batches(attempt, llm_config, target_scenes)
+                else:
+                    script_json, model, tokens = self._generate_provider(
+                        provider, self._build_prompt(attempt), llm_config
+                    )
+                    script = self._parse_script_json(script_json, attempt)
+            except Exception as exc:
+                if not is_credit_exhausted(exc):
+                    raise
+                unavailable.append(provider)
+                last_error = exc
+                continue
+            if unavailable:
+                metadata = dict(script.metadata or {})
+                metadata['provider_fallbacks'] = [
+                    {'phase': 'script', 'unavailable': unavailable_provider, 'replacement': provider}
+                    for unavailable_provider in unavailable
+                ]
+                script.metadata = metadata
+            generation_time = time.time() - start_time
+            logger.info(f"Script generated successfully in {generation_time:.2f}s using {model}")
+            return script, model, generation_time, tokens
+        names = ', '.join(unavailable) or preferred
+        raise RuntimeError(f'Os provedores de roteiro estão sem créditos: {names}.') from last_error
 
-        # Get LLM configuration
-        llm_config = self.llm_configs.get(provider, {})
-        if not llm_config or not llm_config.get("api_key"):
-            raise ValueError(f"LLM provider {provider} not configured or missing API key")
-        if not llm_config.get('enabled', True):
-            raise ValueError(f'O provedor {provider} está desabilitado nas configurações.')
-
-        target_scenes = self._target_scene_count(request)
-        if target_scenes > 12:
-            script, model, tokens = self._generate_script_batches(request, llm_config, target_scenes)
-        else:
-            script_json, model, tokens = self._generate_provider(
-                provider, self._build_prompt(request), llm_config
-            )
-            script = self._parse_script_json(script_json, request)
-
-        generation_time = time.time() - start_time
-        logger.info(
-            f"Script generated successfully in {generation_time:.2f}s using {model}"
-        )
-
-        return script, model, generation_time, tokens
+    def _configured_provider_candidates(self, preferred: str):
+        """Selected text provider first, followed by configured credit fallbacks."""
+        order = ('openai', 'gemini', 'claude', 'deepseek')
+        candidates = [preferred] + [provider for provider in order if provider != preferred]
+        return [provider for provider in candidates
+                if (self.llm_configs.get(provider) or {}).get('api_key')
+                and (self.llm_configs.get(provider) or {}).get('enabled', True)]
 
     @staticmethod
     def _target_scene_count(request: ScriptGenerationRequest) -> int:
@@ -177,25 +201,29 @@ class ScriptGeneratorService:
     def generate_editorial_json(self, provider: str, prompt: str) -> str:
         """Generate a small JSON editorial artifact with the configured LLM."""
         provider = provider.value if isinstance(provider, LLMProvider) else str(provider)
-        llm_config = self.llm_configs.get(provider, {})
-        if not llm_config or not llm_config.get("api_key"):
+        preferred_config = self.llm_configs.get(provider, {})
+        if not preferred_config or not preferred_config.get('api_key'):
             raise ValueError(f"LLM provider {provider} not configured or missing API key")
-        if not llm_config.get('enabled', True):
+        if not preferred_config.get('enabled', True):
             raise ValueError(f'O provedor {provider} está desabilitado nas configurações.')
-
-        generators = {
-            'openai': self._generate_openai,
-            'claude': self._generate_claude,
-            'gemini': self._generate_gemini,
-            'deepseek': self._generate_deepseek,
-            'kimi': self._generate_kimi,
-            'qwen': self._generate_qwen,
-        }
-        generator = generators.get(provider)
-        if not generator:
-            raise ValueError(f"Unsupported LLM provider: {provider}")
-        content, _, _ = generator(prompt, llm_config)
-        return content
+        self.last_provider_fallbacks = []
+        last_error = None
+        for candidate in self._configured_provider_candidates(provider):
+            try:
+                content, _, _ = self._generate_provider(candidate, prompt, self.llm_configs[candidate])
+                if self.last_provider_fallbacks:
+                    for event in self.last_provider_fallbacks:
+                        event['replacement'] = candidate
+                return content
+            except Exception as exc:
+                if not is_credit_exhausted(exc):
+                    raise
+                self.last_provider_fallbacks.append(
+                    {'phase': 'editorial', 'unavailable': candidate, 'replacement': None}
+                )
+                last_error = exc
+        names = ', '.join(event['unavailable'] for event in self.last_provider_fallbacks) or provider
+        raise RuntimeError(f'Os provedores de texto estão sem créditos: {names}.') from last_error
 
     def build_base_script_prompt(
         self, request: ScriptGenerationRequest, source_text: str, audience: str = ''

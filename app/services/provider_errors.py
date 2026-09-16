@@ -11,6 +11,14 @@ RETIRED_MODELS = {
 }
 
 
+def is_credit_exhausted(error) -> bool:
+    """Return true only for permanent credit/quota exhaustion, never a transient 429."""
+    detail = str(error).lower()
+    markers = ('credit_balance_exhausted', 'insufficient_quota', 'quota_exceeded',
+               'no credits remaining', 'insufficient credits')
+    return any(marker in detail for marker in markers)
+
+
 def model_status_message(provider, model):
     replacement = RETIRED_MODELS.get((provider, model))
     if replacement:

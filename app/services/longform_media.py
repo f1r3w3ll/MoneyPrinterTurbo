@@ -9,6 +9,7 @@ from moviepy import AudioClip, AudioFileClip, VideoClip, VideoFileClip, concaten
 
 from app.config import config
 from app.utils import utils
+from app.services.provider_errors import is_credit_exhausted
 
 
 def nonempty(filename):
@@ -115,14 +116,40 @@ def generate_scene_audio(scene, params, target):
     return dict(path=str(target), duration=duration, cues=readable_cues(cues))
 
 
+def _configured_image_providers(preferred):
+    """Return the selected provider followed by configured image alternatives."""
+    preferred = str(preferred or 'dalle')
+    candidates = [preferred]
+    openai_ready = bool(config.image_generation.get('openai_api_key') or config.app.get('openai_api_key')
+                        or config.llm.get('openai', {}).get('api_key'))
+    sd_ready = bool(config.image_generation.get('sd_api_key'))
+    if preferred != 'sd' and sd_ready:
+        candidates.append('sd')
+    if preferred != 'dalle' and openai_ready:
+        candidates.append('dalle')
+    return candidates
+
+
 def generate_scene_image(scene, params, target):
+    """Generate a scene image, switching providers only after a credit exhaustion error."""
     from app.services.image_generation import ImageGenerationService
-    service = ImageGenerationService(params.image_provider)
-    result = service.generate_image(scene.image_prompt, Path(target).stem, str(Path(target).parent),
-                                    quality=params.image_quality, size=params.image_size)
-    if not valid_image(result):
-        raise RuntimeError(f'Imagem inválida na cena {scene.index + 1}.')
-    return result
+    unavailable = []
+    last_error = None
+    for provider in _configured_image_providers(params.image_provider):
+        try:
+            service = ImageGenerationService(provider)
+            result = service.generate_image(scene.image_prompt, Path(target).stem, str(Path(target).parent),
+                                            quality=params.image_quality, size=params.image_size)
+            if not valid_image(result):
+                raise RuntimeError(f'Imagem inválida na cena {scene.index + 1}.')
+            return dict(path=result, provider=provider, unavailable_providers=unavailable)
+        except Exception as exc:
+            if not is_credit_exhausted(exc):
+                raise
+            unavailable.append(provider)
+            last_error = exc
+    names = ', '.join(unavailable) or str(params.image_provider)
+    raise RuntimeError(f'As fontes de imagem estão sem créditos: {names}.') from last_error
 
 
 def timestamp(seconds):

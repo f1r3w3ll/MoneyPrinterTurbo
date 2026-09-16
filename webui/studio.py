@@ -386,7 +386,8 @@ def _script_sources(backend, settings, profile=None, brief=None, selected_packag
                                     'brief': dict(brief, topic=topic.strip()),
                                     'selected_package': selected_package,
                                 })
-                            result = ScriptGeneratorService().generate_script(ScriptGenerationRequest(topic=topic, duration_minutes=minutes, llm_provider=provider, custom_instructions=instructions, language=language, style=style, target_audience=audience, editorial_context=editorial_context))
+                            generator = ScriptGeneratorService()
+                            result = generator.generate_script(ScriptGenerationRequest(topic=topic, duration_minutes=minutes, llm_provider=provider, custom_instructions=instructions, language=language, style=style, target_audience=audience, editorial_context=editorial_context))
                             script = result[0] if isinstance(result, tuple) else result
                             data = script.model_dump()
                             if selected_package:
@@ -514,6 +515,10 @@ Source material: {source_text[:12000]}'''
                             editorial_data['source_mode'] = 'base_script'
                             data.setdefault('metadata', {})['editorial'] = editorial_data
                             _load(data)
+                            fallbacks = (data.get('metadata') or {}).get('provider_fallbacks') or []
+                            if fallbacks:
+                                replacements = ', '.join(f"{item['unavailable']} → {item['replacement']}" for item in fallbacks)
+                                st.info(f'Provedor sem créditos substituído: {replacements}.')
                             estimated_seconds, target_seconds = _narration_duration_estimate(data)
                             if not _duration_is_on_target(estimated_seconds, target_seconds):
                                 st.warning(
@@ -845,6 +850,12 @@ def _history():
             if record['status'] in ('failed', 'interrupted'):
                 _resume_action(backend, task_id, f'resume_{task_id}')
             artifacts = record.get('artifacts') or {}
+            if artifacts.get('provider_fallbacks'):
+                replacements = ', '.join(
+                    f"{item.get('unavailable')} → {item.get('replacement')}"
+                    for item in artifacts['provider_fallbacks']
+                )
+                st.info(f'Alternativas usadas por saldo indisponível: {replacements}.')
             if artifacts.get('duration_seconds'):
                 st.caption(f"Duração real: {float(artifacts['duration_seconds']) / 60:.1f} minutos")
                 if artifacts.get('video') and not 300 <= float(artifacts['duration_seconds']) <= 1800:
@@ -1020,10 +1031,15 @@ def _publication(settings):
 }}
 Do not place headings inside any field. Use the supplied scene timing for chapters. Title: {title}.{audience_context}
 Script: {json.dumps(project['script'], ensure_ascii=False)}"""
-            generated = ScriptGeneratorService().generate_editorial_json('openai', prompt)
+            generator = ScriptGeneratorService()
+            text_provider = ((project['script'].get('metadata') or {}).get('script_llm_provider') or 'openai')
+            generated = generator.generate_editorial_json(text_provider, prompt)
             description_value, generated_tags = _publication_content(generated)
             st.session_state[f'publication_description_{selected["id"]}'] = description_value
             st.session_state[f'publication_tags_{selected["id"]}'] = ', '.join(generated_tags)
+            if generator.last_provider_fallbacks:
+                replacements = ', '.join(f"{item['unavailable']} → {item['replacement']}" for item in generator.last_provider_fallbacks)
+                st.info(f'Provedor sem créditos substituído: {replacements}.')
         except Exception as exc:
             st.error(redact(exc))
     description = st.text_area('Descrição', value=st.session_state.get(f'publication_description_{selected["id"]}', ''), key=f'publication_description_{selected["id"]}', height=220)

@@ -31,6 +31,7 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
             generated_files={'fingerprint': fingerprint, 'scenes': {}}, timestamp=time.time())
     data = state.generated_files
     entries = data['scenes']
+    provider_fallbacks = data.setdefault('provider_fallbacks', [])
 
     def save(phase, progress):
         state.current_phase = phase
@@ -40,6 +41,7 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
         write_json(folder / 'artifacts.json', dict(video=data.get('video'), thumbnail=data.get('thumbnail'),
             script=str(folder / 'script.json'), subtitles=data.get('subtitles'),
             stock_sources=data.get('stock_sources', []),
+            provider_fallbacks=data.get('provider_fallbacks', []),
             duration_seconds=data.get('duration_seconds', sum(entry.get('duration', 0.) for entry in entries.values()))))
         report(phase, progress)
 
@@ -88,7 +90,35 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
                 data.pop('video', None)
                 data.pop('base_video', None)
                 save('images', 35 + int(20 * number / len(script.scenes)))
-                entry['image'] = generate_scene_image(scene, params, folder / f'scene-{scene.index}.png')
+                try:
+                    generated = generate_scene_image(scene, params, folder / f'scene-{scene.index}.png')
+                except RuntimeError as exc:
+                    if not str(exc).startswith('As fontes de imagem estão sem créditos:'):
+                        raise
+                    stock = fetch_scene_clip(scene, params, folder / 'stock')
+                    entry['stock_video'] = stock['path']
+                    entry['stock_source'] = {key: value for key, value in stock.items() if key != 'path'}
+                    stock_sources = [item for item in stock_sources if item.get('scene_index') != scene.index]
+                    stock_sources.append(dict(scene_index=scene.index, **entry['stock_source']))
+                    data['stock_sources'] = stock_sources
+                    event = dict(phase='images', scene_index=scene.index,
+                                 unavailable=str(exc).removeprefix('As fontes de imagem estão sem créditos:').strip(),
+                                 replacement=f"stock:{stock.get('provider', params.stock_provider)}")
+                    if event not in provider_fallbacks:
+                        provider_fallbacks.append(event)
+                    state.completed_scenes = [int(key) for key, item in entries.items()
+                                              if item.get('image') or item.get('stock_video')]
+                    save('images', 35 + int(20 * (number + 1) / len(script.scenes)))
+                    continue
+                if isinstance(generated, dict):
+                    entry['image'] = generated['path']
+                    for unavailable in generated.get('unavailable_providers', []):
+                        event = dict(phase='images', scene_index=scene.index, unavailable=unavailable,
+                                     replacement=generated.get('provider'))
+                        if event not in provider_fallbacks:
+                            provider_fallbacks.append(event)
+                else:  # Compatibility with integrations that still return a file path.
+                    entry['image'] = generated
                 state.completed_scenes = [int(key) for key, item in entries.items()
                                           if item.get('image') or item.get('stock_video')]
                 save('images', 35 + int(20 * (number + 1) / len(script.scenes)))

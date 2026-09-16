@@ -164,6 +164,16 @@ cena. Caso ela também seja recusada, a produção para com orientação para re
 o prompt visual ou selecionar clipes gratuitos/Stable Diffusion; não há ciclo
 automático de tentativas.
 
+## Fallback por saldo de API
+
+O Estúdio distingue saldo esgotado de uma limitação temporária de requisições.
+Quando uma fonte retornar explicitamente crédito/cota insuficiente, ele tenta
+somente alternativas já configuradas: em texto, OpenAI, Gemini, Claude e
+DeepSeek; em imagens, DALL-E, Stable Diffusion e, quando necessário, clipes
+gratuitos. Erros de rede, configuração, segurança e limites temporários não
+acionam essa troca. O roteiro, a geração de descrição e o histórico da produção
+informam a substituição realizada e a fonte sem créditos.
+
 Roteiros preparados localmente podem ficar em `storage/studio/imports/`. Esse
 diretório é operacional e ignorado pelo Git: não use-o para documentação ou
 para dados que precisem acompanhar um commit. Antes de importar, valide o JSON

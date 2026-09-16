@@ -156,6 +156,30 @@ class LongformTests(unittest.TestCase):
             ai_thumbnail.assert_not_called()
             image_service.assert_not_called()
 
+    def test_ai_credit_exhaustion_uses_stock_clips_for_the_affected_scenes(self):
+        from app.services import longform_pipeline as pipeline
+
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            folder = Path(tmp)
+            params = LongFormVideoParams(video_subject='Teste', structured_script=example_script(),
+                                         visual_mode='ai', stock_provider='pexels')
+            def audio(scene, _params, target):
+                Path(target).write_bytes(b'audio')
+                return {'path': str(target), 'duration': 3., 'cues': []}
+            def stock(scene, _params, _target):
+                return {'path': f'clip-{scene.index}.mp4', 'provider': 'pexels',
+                        'source_url': f'https://video.example/{scene.index}', 'search_term': 'technology'}
+            with patch.object(pipeline, 'generate_scene_audio', side_effect=audio), \
+                 patch.object(pipeline, 'generate_scene_image', side_effect=RuntimeError('As fontes de imagem estão sem créditos: dalle, sd.')), \
+                 patch.object(pipeline, 'fetch_scene_clip', side_effect=stock) as clips, \
+                 patch.object(pipeline, 'valid_audio', side_effect=bool), \
+                 patch.object(pipeline, 'valid_image', return_value=False), \
+                 patch.object(pipeline, 'valid_stock_video', side_effect=bool):
+                result = pipeline.run('credit-stock', params, folder, stop_at='images')
+
+            self.assertEqual(clips.call_count, 5)
+            self.assertEqual(len(result['stock_videos']), 5)
+
     def test_duplicate_scene_indices_rejected(self):
         script = example_script()
         script.scenes[1].index = 0

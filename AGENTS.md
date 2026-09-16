@@ -703,3 +703,18 @@ O gerador original foi preservado.
   por IA. Ao retomar uma produção Pexels que falhou na thumbnail, os clipes e
   a composição existentes são reutilizados; a etapa final não precisa de saldo
   OpenAI. O modo `hybrid` mantém chamadas de IA por definição.
+
+## Fallback por créditos de API — 16/09/2026
+
+- `credit_balance_exhausted`, `insufficient_quota` e `quota_exceeded` são
+  tratados como saldo indisponível, separadamente de `429` temporário, rede ou
+  erro de configuração. Só esses sinais autorizam fallback automático.
+- Roteiro, roteiro-base, correção de duração e artefatos editoriais tentam o
+  provider escolhido e, em falta de saldo, os provedores configurados na ordem
+  OpenAI, Gemini, Claude e DeepSeek. O roteiro salva a substituição em
+  `metadata.provider_fallbacks`; a interface também mostra a troca ao gerar
+  descrição de publicação.
+- Imagens tentam DALL-E e Stable Diffusion conforme chaves configuradas. Caso
+  todas retornem saldo esgotado, a cena usa clipe gratuito configurado e a
+  produção persiste o evento em `artifacts.provider_fallbacks`, exibido no
+  histórico. Outros erros não são mascarados por esse fallback.
