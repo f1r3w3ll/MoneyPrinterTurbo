@@ -746,3 +746,8 @@ O gerador original foi preservado.
 - A máquina local possui NVIDIA GeForce RTX 4060 Laptop GPU (driver 616.56). O FFmpeg distribuído pelo projeto declara `h264_nvenc` e uma codificação real em 1280×720 foi concluída com sucesso.
 - O Estúdio ganhou a configuração **Aceleração de exportação do vídeo**. NVENC é persistido como `app.video_codec = "h264_nvenc"` para novas produções e é usado nos blocos de composição e na endcard CTA. A composição dos frames continua dependente de CPU.
 - Quando o encoder, a GPU ou o driver falhar, o serviço reexecuta aquela etapa com `libx264` e desativa NVENC apenas durante o processo corrente. Assim uma produção não falha por indisponibilidade de hardware.
+
+## Limite temporário do Replicate — 16/09/2026
+
+- O erro `Request was throttled` com limite de seis previsões por minuto e burst de uma não indica saldo esgotado. Ele ocorre em contas Replicate abaixo de US$ 5 em créditos.
+- O cliente Stable Diffusion agora reserva globalmente uma previsão a cada 10,5 segundos, processa lotes de SD com uma única requisição simultânea e faz até seis tentativas quando recebe throttle. Pexels continua sendo o fluxo visual padrão e não chama Replicate.

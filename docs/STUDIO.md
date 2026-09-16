@@ -49,6 +49,9 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
   produção antes da composição; a retomada reutiliza os clipes já baixados.
 - Stable Diffusion 3.5 Large via Replicate permanece apenas para chamadas de
   API legadas que peçam imagem por IA de forma explícita; requer créditos.
+  Contas Replicate com menos de US$ 5 em créditos podem aceitar apenas seis
+  previsões por minuto. Nessas contas, o cliente envia uma imagem por vez e
+  espaça as solicitações para evitar o erro temporário de throttling.
 - Voz: Edge TTS em português, inglês ou espanhol; ElevenLabs quando chave e
   identificador de voz estiverem configurados. Play.ht e Murf não são oferecidos.
 - A duração final é medida pelo áudio de cada cena. A estimativa do roteiro

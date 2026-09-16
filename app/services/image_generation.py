@@ -12,6 +12,7 @@ import time
 import base64
 import ssl
 import httpx
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple
 
@@ -22,6 +23,32 @@ from app.config import config
 
 
 DEFAULT_REPLICATE_SD_MODEL = 'stability-ai/stable-diffusion-3.5-large'
+# Accounts below Replicate's higher credit tier accept only six prediction
+# creations per minute with a burst of one. Keep a little margin so an entire
+# long-form run does not fail just because several scenes start together.
+REPLICATE_MIN_REQUEST_INTERVAL_SECONDS = 10.5
+_replicate_request_lock = threading.Lock()
+_replicate_next_request_at = 0.0
+
+
+def is_replicate_throttled(error: Exception) -> bool:
+    """Recognize Replicate's temporary prediction-creation throttle."""
+    detail = str(error).lower()
+    return ('replicate' in detail and 'throttl' in detail) or (
+        'status: 429' in detail and 'creating predictions' in detail
+    )
+
+
+def _wait_for_replicate_slot():
+    """Reserve one Replicate prediction slot globally across scene workers."""
+    global _replicate_next_request_at
+    with _replicate_request_lock:
+        now = time.monotonic()
+        wait_seconds = max(0.0, _replicate_next_request_at - now)
+        _replicate_next_request_at = max(now, _replicate_next_request_at) + REPLICATE_MIN_REQUEST_INTERVAL_SECONDS
+    if wait_seconds:
+        logger.info(f'Waiting {wait_seconds:.1f}s for the next Replicate prediction slot.')
+        time.sleep(wait_seconds)
 
 
 def is_output_safety_block(error: Exception) -> bool:
@@ -129,7 +156,7 @@ class ImageGenerationService:
         prompts: List[Tuple[str, str]],  # [(scene_id, prompt)]
         output_dir: str,
         max_concurrent: int = 3,
-        max_retries: int = 3,
+        max_retries: int = 6,
     ) -> Dict[str, str]:
         """
         Generate multiple images with rate limiting and retry logic
@@ -143,15 +170,16 @@ class ImageGenerationService:
         Returns:
             Dictionary mapping scene_id to image_path
         """
+        workers = 1 if self.provider == 'sd' else max_concurrent
         logger.info(
             f"Batch generating {len(prompts)} images with "
-            f"max {max_concurrent} concurrent requests"
+            f"max {workers} concurrent requests"
         )
 
         results = {}
         failed = []
 
-        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             # Submit all tasks
             future_to_scene = {}
             for scene_id, prompt in prompts:
@@ -210,7 +238,10 @@ class ImageGenerationService:
                 return self.generate_image(prompt, scene_id, output_dir)
             except Exception as e:
                 if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    # The global Replicate reservation below applies before the
+                    # retry. Give the API an additional short recovery window
+                    # when it explicitly reports a throttle.
+                    wait_time = max(2 ** attempt, 2) if is_replicate_throttled(e) else 2 ** attempt
                     logger.warning(
                         f"Attempt {attempt + 1}/{max_retries} failed for {scene_id}, "
                         f"retrying in {wait_time}s: {e}"
@@ -353,7 +384,10 @@ class ImageGenerationService:
 
         logger.debug(f"Stable Diffusion request: model={model}")
 
-        # Generate image
+        # Reserve a prediction slot before every call. This is deliberately
+        # process-global because long-form scenes may create new service
+        # instances while sharing the same Replicate account.
+        _wait_for_replicate_slot()
         output = replicate.Client(api_token=api_key).run(
             model,
             input=stable_diffusion_input(model, prompt),

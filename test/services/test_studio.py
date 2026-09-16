@@ -35,6 +35,14 @@ class StudioTests(unittest.TestCase):
         self.assertTrue(is_credit_exhausted(Exception("{'code': 'insufficient_quota', 'message': 'no credits remaining'}")))
         self.assertFalse(is_credit_exhausted(Exception('Error code: 429 - rate limit exceeded; retry later')))
 
+    def test_replicate_throttle_is_recognized_separately_from_credit_exhaustion(self):
+        from app.services.image_generation import is_replicate_throttled
+
+        error = Exception('ReplicateError Details: status: 429 detail: Request was throttled. '
+                          'Your rate limit for creating predictions is reduced to 6 requests per minute.')
+        self.assertTrue(is_replicate_throttled(error))
+        self.assertFalse(is_replicate_throttled(Exception('ReplicateError Details: status: 401 invalid token')))
+
     def test_dalle_is_never_selected_as_an_image_fallback(self):
         from app.services import longform_media
         from app.models.schema import SceneInfo
