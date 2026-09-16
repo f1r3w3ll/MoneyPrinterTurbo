@@ -153,6 +153,12 @@ suficiente para a meta e revise a estimativa da tela antes de iniciar custos de
 imagem e voz. Para inglês dos EUA, o planejador usa aproximadamente 13
 caracteres por segundo.
 
+Quando a OpenAI bloquear somente a imagem produzida por sua moderação de
+segurança, o Estúdio tenta uma única composição documental neutra para a mesma
+cena. Caso ela também seja recusada, a produção para com orientação para revisar
+o prompt visual ou selecionar clipes gratuitos/Stable Diffusion; não há ciclo
+automático de tentativas.
+
 Roteiros preparados localmente podem ficar em `storage/studio/imports/`. Esse
 diretório é operacional e ignorado pelo Git: não use-o para documentação ou
 para dados que precisem acompanhar um commit. Antes de importar, valide o JSON

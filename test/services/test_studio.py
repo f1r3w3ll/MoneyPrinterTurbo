@@ -451,6 +451,30 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(Path(result).read_bytes(), b'image bytes' * 128)
             self.assertEqual(generated.call_args.kwargs['quality'], 'medium')
 
+    def test_gpt_image_retries_once_with_neutral_prompt_after_output_safety_block(self):
+        from app.services import image_generation
+
+        blocked = Exception("Error code: 400 - {'error': {'code': 'moderation_blocked', "
+                            "'moderation_details': {'moderation_stage': 'output'}}}")
+        generated = Mock(side_effect=[blocked, SimpleNamespace(data=[SimpleNamespace(
+            b64_json=base64.b64encode(b'image bytes' * 128).decode(),
+        )])])
+        client = SimpleNamespace(images=SimpleNamespace(generate=generated))
+        module = ModuleType('openai')
+        module.OpenAI = lambda **ignored: client
+        module.APIConnectionError = type('APIConnectionError', (Exception,), {})
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, \
+             patch.dict(sys.modules, {'openai': module}), \
+             patch.object(image_generation.config, 'image_generation', {
+                 'openai_api_key': 'test', 'dalle_model': 'gpt-image-1'
+             }), patch.object(image_generation.config, 'app', {}), patch.object(image_generation.config, 'llm', {}):
+            result = image_generation.ImageGenerationService('dalle').generate_image(
+                'A violent historical event', 'scene-0', tmp,
+            )
+            self.assertTrue(Path(result).is_file())
+            self.assertEqual(generated.call_count, 2)
+            self.assertIn('neutral documentary visual', generated.call_args_list[1].kwargs['prompt'])
+
     def test_sd35_uses_its_current_replicate_input_schema(self):
         from app.services.image_generation import stable_diffusion_input
 

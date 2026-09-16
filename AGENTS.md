@@ -680,3 +680,14 @@ O gerador original foi preservado.
 - `Arquivar como publicado` não é uma etapa da produção: após confirmação,
   move os artefatos para `PUBLICADOS` e os remove da lista de publicação do
   Estúdio. Usar somente quando a entrega já estiver confirmada.
+
+## Moderação de imagens OpenAI — 16/09/2026
+
+- A OpenAI pode rejeitar uma imagem depois de a gerar internamente, retornando
+  HTTP 400 com `moderation_blocked` e `moderation_stage=output`. Isso não é
+  erro de chave, crédito ou conexão.
+- Para esse caso específico, DALL-E/GPT Image faz uma única tentativa com uma
+  composição documental neutra, não gráfica e sem pessoas, violência, armas,
+  logos ou texto legível. Não repete o prompt original. Se a alternativa
+  também for recusada, a produção exibe instrução para revisar o prompt visual
+  da cena ou usar clipes gratuitos/Stable Diffusion e então retomar.

@@ -24,6 +24,19 @@ from app.config import config
 DEFAULT_REPLICATE_SD_MODEL = 'stability-ai/stable-diffusion-3.5-large'
 
 
+def is_output_safety_block(error: Exception) -> bool:
+    """Identify an image that OpenAI rejected after generating its output."""
+    detail = str(error).lower()
+    return 'moderation_blocked' in detail and 'moderation_stage' in detail and 'output' in detail
+
+
+def neutral_documentary_prompt() -> str:
+    """Safe visual fallback used only after an output moderation rejection."""
+    return ('A neutral documentary visual: an abstract, non-graphic editorial composition with '
+            'architecture, landscape, maps, documents, and symbolic objects as appropriate; '
+            'no people, no violence, no injury, no weapons, no logos, no readable text.')
+
+
 def stable_diffusion_input(model: str, prompt: str, width: int = 1024, height: int = 1024) -> dict:
     """Adapt the image request to the input schema of the configured model."""
     normalized = str(model or '').split(':', 1)[0]
@@ -253,19 +266,33 @@ class ImageGenerationService:
                     model=model, prompt=enhanced_prompt, size=size, quality=quality, n=1
                 )
             except Exception as exc:
-                from openai import APIConnectionError
-                if not isinstance(exc, APIConnectionError):
-                    raise
-                cause = exc.__cause__
-                certificate_error = False
-                for _ in range(8):
-                    if cause is None:
-                        break
-                    certificate_error |= 'CERTIFICATE_VERIFY_FAILED' in str(cause)
-                    cause = cause.__cause__
-                detail = ('O certificado HTTPS da rede não foi reconhecido. Confira os certificados do Windows e a VPN.'
-                          if certificate_error else 'Confira a conexão com a internet, VPN ou proxy e tente retomar.')
-                raise RuntimeError(f'Falha de conexão ao gerar a imagem {scene_id}. {detail} Os arquivos já gerados foram preservados.') from exc
+                if is_output_safety_block(exc):
+                    logger.warning(f'OpenAI safety system blocked generated output for {scene_id}; retrying once with neutral documentary direction.')
+                    try:
+                        response = client.images.generate(
+                            model=model, prompt=neutral_documentary_prompt(), size=size, quality=quality, n=1
+                        )
+                    except Exception as retry_error:
+                        if is_output_safety_block(retry_error):
+                            raise ValueError(
+                                f'A OpenAI bloqueou a imagem da cena {scene_id} por segurança, inclusive após uma alternativa neutra. '
+                                'Revise o prompt visual da cena ou escolha clipes gratuitos/Stable Diffusion e retome a produção.'
+                            ) from retry_error
+                        raise
+                else:
+                    from openai import APIConnectionError
+                    if not isinstance(exc, APIConnectionError):
+                        raise
+                    cause = exc.__cause__
+                    certificate_error = False
+                    for _ in range(8):
+                        if cause is None:
+                            break
+                        certificate_error |= 'CERTIFICATE_VERIFY_FAILED' in str(cause)
+                        cause = cause.__cause__
+                    detail = ('O certificado HTTPS da rede não foi reconhecido. Confira os certificados do Windows e a VPN.'
+                              if certificate_error else 'Confira a conexão com a internet, VPN ou proxy e tente retomar.')
+                    raise RuntimeError(f'Falha de conexão ao gerar a imagem {scene_id}. {detail} Os arquivos já gerados foram preservados.') from exc
 
         # Download image
         image_path = os.path.join(output_dir, f"{scene_id}.png")
