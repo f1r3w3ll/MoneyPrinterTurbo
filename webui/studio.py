@@ -1059,7 +1059,11 @@ Script: {json.dumps(project['script'], ensure_ascii=False)}"""
     project = st.selectbox('Projeto WoopSocial', available_projects,
                            format_func=lambda item: item.get('name') or item['id'], key=f'woop_project_{selected["id"]}')
     try:
-        accounts = woopsocial.youtube_accounts(project['id'])
+        # Some running Streamlit sessions keep an earlier WoopSocial client in
+        # memory whose youtube_accounts() has no project parameter. Fetch the
+        # connected YouTube accounts independently; project_id is still sent
+        # later with the media upload and post creation.
+        accounts = woopsocial.youtube_accounts()
     except Exception as exc:
         st.error(redact(exc)); return
     if not accounts:

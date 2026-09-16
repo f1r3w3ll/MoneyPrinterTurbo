@@ -732,3 +732,11 @@ O gerador original foi preservado.
   Mesmo parâmetros antigos com `image_provider=dalle` falham antes de qualquer
   chamada à OpenAI. Stable Diffusion persiste apenas como integração explícita
   de API legada; a produção pela interface não a chama.
+
+## Compatibilidade de canais WoopSocial — 16/09/2026
+
+- A tela de publicação chama `youtube_accounts()` sem argumento para permanecer
+  compatível com processos Streamlit que ainda mantenham em memória uma versão
+  anterior do cliente cuja função não aceitava `project_id`. O projeto escolhido
+  ainda é enviado no upload e na criação do post; a lista permite escolher
+  explicitamente qualquer canal YouTube conectado à conta.

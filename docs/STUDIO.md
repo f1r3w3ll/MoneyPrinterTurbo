@@ -64,9 +64,10 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
 - As cenas usam Pexels e a thumbnail é criada localmente a partir de um frame
   do primeiro clipe, com o texto configurado. O Estúdio bloqueia DALL·E para
   evitar cobranças acidentais de créditos OpenAI.
-- Depois de escolher o projeto WoopSocial, a lista passa a mostrar apenas seus
-  canais do YouTube. O botão repete o nome do canal de destino para revisão
-  antes do envio.
+- A publicação lista todos os canais do YouTube conectados à conta WoopSocial.
+  Escolha o canal de destino explicitamente; o projeto WoopSocial selecionado
+  continua sendo usado para o upload e criação do post. O botão repete o nome
+  do canal para revisão antes do envio.
 - Produzir e publicar são etapas independentes. Um vídeo concluído permanece
   em **Produções** com MP4, thumbnail, roteiro e metadados até que seja
   excluído ou arquivado. A aba **Publicação** lista esses vídeos concluídos
