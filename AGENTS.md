@@ -751,3 +751,9 @@ O gerador original foi preservado.
 
 - O erro `Request was throttled` com limite de seis previsões por minuto e burst de uma não indica saldo esgotado. Ele ocorre em contas Replicate abaixo de US$ 5 em créditos.
 - O cliente Stable Diffusion agora reserva globalmente uma previsão a cada 10,5 segundos, processa lotes de SD com uma única requisição simultânea e faz até seis tentativas quando recebe throttle. Pexels continua sendo o fluxo visual padrão e não chama Replicate.
+
+## Migração de produções anteriores ao Pexels — 16/09/2026
+
+- Algumas produções criadas antes de `visual_mode` ser persistido ficaram sem esse campo e, ao retomar, herdavam o comportamento histórico de Stable Diffusion/Replicate. A cadência do Replicate não resolve esse caso, pois ainda consome previsões.
+- Ao retomar uma produção sem `visual_mode`, o Estúdio a migra uma vez para `stock` com `stock_provider="pexels"`, atualiza o fingerprint do checkpoint e invalida somente composição, legendas, thumbnail e vídeo final. Áudio e imagens válidas já gerados são preservados; Pexels é chamado somente nas cenas que ainda não têm visual.
+- A produção local `Project Azorian: The Billion-Dollar Cold War Submarine Heist` foi migrada com 41 imagens e todo o áudio preservados. A aplicação local foi reiniciada com uma única instância Streamlit na porta 8501; duas instâncias concorrentes não devem voltar a ser iniciadas.

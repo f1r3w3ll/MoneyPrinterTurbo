@@ -136,6 +136,41 @@ class LongformTests(unittest.TestCase):
             self.assertEqual(len(result['stock_sources']), 5)
             self.assertEqual(result['stock_sources'][0]['provider'], 'pexels')
 
+    def test_stock_resume_keeps_existing_images_and_uses_pexels_only_for_missing_scenes(self):
+        """Migrated jobs must never call their former AI image provider again."""
+        from app.services import longform_pipeline as pipeline
+
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            folder = Path(tmp)
+            params = LongFormVideoParams(video_subject='Teste', structured_script=example_script(),
+                                         visual_mode='stock', stock_provider='pexels')
+            manager = CheckpointManager('legacy-stock', tmp)
+            legacy_image = folder / 'scene-0.png'
+            legacy_image.write_bytes(b'image')
+            entries = {
+                str(scene.index): dict(index=scene.index, audio=f'audio-{scene.index}.mp3', duration=3., cues=[],
+                                       image=str(legacy_image) if scene.index == 0 else None)
+                for scene in params.structured_script.scenes
+            }
+            manager.save_checkpoint(CheckpointState(
+                task_id='legacy-stock', current_phase='images', completed_scenes=[0],
+                generated_files={'fingerprint': hashlib.sha256(params.model_dump_json().encode()).hexdigest(),
+                                 'scenes': entries}, timestamp=1,
+            ))
+            def stock(scene, _params, _target):
+                return {'path': f'clip-{scene.index}.mp4', 'provider': 'pexels',
+                        'source_url': f'https://video.example/{scene.index}', 'search_term': 'technology'}
+            with patch.object(pipeline, 'valid_audio', side_effect=bool), \
+                 patch.object(pipeline, 'valid_image', side_effect=bool), \
+                 patch.object(pipeline, 'valid_stock_video', side_effect=bool), \
+                 patch.object(pipeline, 'fetch_scene_clip', side_effect=stock) as clips, \
+                 patch.object(pipeline, 'generate_scene_image') as images:
+                result = pipeline.run('legacy-stock', params, folder, stop_at='images')
+
+            images.assert_not_called()
+            self.assertEqual(clips.call_count, 4)
+            self.assertNotIn('0', result['stock_videos'])
+
     def test_stock_thumbnail_uses_a_clip_frame_without_calling_ai_images(self):
         from app.services.longform_media import make_thumbnail
         from app.services.thumbnail import ThumbnailService

@@ -1,4 +1,5 @@
 """Persistent local productions and drafts, with background queue ownership."""
+import hashlib
 import json
 import os
 import re
@@ -14,6 +15,7 @@ from app.controllers.manager.memory_manager import InMemoryTaskManager
 from app.models import const
 from app.models.schema import LongFormVideoParams
 from app.services import state as sm
+from app.services.checkpoint import CheckpointManager
 from app.services.script_parser import ScriptParser
 from app.services.studio_settings import validate_settings, redact
 from app.services.studio_storage import write_json as _write
@@ -200,6 +202,49 @@ def _public_params(params):
     return clean(params.model_dump(mode='json'))
 
 
+def _migrate_legacy_visual_source(record, folder):
+    """Move pre-Pexels Studio records to stock footage without losing progress.
+
+    Old records omitted ``visual_mode`` and were therefore created while the
+    model defaulted to Stable Diffusion.  On resume they must not submit a new
+    Replicate prediction.  Existing valid images remain usable; only missing
+    scenes will obtain Pexels clips.
+    """
+    saved = record.get('params') or {}
+    if 'visual_mode' in saved:
+        return record
+
+    params_data = dict(saved)
+    params_data['visual_mode'] = 'stock'
+    params_data['stock_provider'] = 'pexels'
+    params = LongFormVideoParams.model_validate(params_data)
+    record['params'] = _public_params(params)
+    record['updated_at'] = time.time()
+
+    manager = CheckpointManager(record['id'], str(folder))
+    state = manager.load_checkpoint()
+    if state is not None:
+        data = state.generated_files
+        data['fingerprint'] = hashlib.sha256(params.model_dump_json().encode()).hexdigest()
+        # Composition must be redone if an incomplete legacy visual set later
+        # receives Pexels clips.  Audio, captions and existing scene images are
+        # deliberately preserved.
+        for key in ('video', 'base_video', 'duration_seconds', 'subtitles', 'thumbnail'):
+            data.pop(key, None)
+        data['stock_sources'] = [source for source in data.get('stock_sources', [])
+                                 if isinstance(source, dict)]
+        scenes = data.get('scenes', {})
+        state.completed_scenes = [int(index) for index, entry in scenes.items()
+                                  if isinstance(entry, dict) and
+                                  (Path(entry.get('image') or '').is_file() or
+                                   Path(entry.get('stock_video') or '').is_file())]
+        state.current_phase = 'images'
+        manager.save_checkpoint(state)
+
+    _write(Path(folder) / 'production.json', record)
+    return record
+
+
 def _freeze_cta_assets(params, folder):
     """Copy channel assets into a production so later profile edits cannot break it."""
     assets = Path(folder) / 'assets'
@@ -268,6 +313,7 @@ def resume(identifier):
             raise ValueError('Esta produção já está em execução ou na fila.')
         if record['status'] == 'complete':
             raise ValueError('Esta produção já foi concluída.')
+        record = _migrate_legacy_visual_source(record, _folder(identifier))
         params = LongFormVideoParams.model_validate(record['params'])
         errors = validate_settings(params)
         if errors:
@@ -281,6 +327,7 @@ def _run(identifier):
     folder = _folder(identifier)
     with _lock:
         record = _read(folder / 'production.json')
+        record = _migrate_legacy_visual_source(record, folder)
     def report(phase, progress):
         with _lock:
             now = time.time()

@@ -78,6 +78,40 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(params.stock_provider, 'pexels')
         self.assertEqual(params.image_provider, 'sd')
 
+    def test_legacy_production_without_visual_mode_migrates_to_pexels_on_resume(self):
+        from app.services import studio
+        from app.services.checkpoint import CheckpointManager
+        from app.models.schema import CheckpointState
+        import hashlib
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            folder = Path(tmp)
+            image = folder / 'scene-0.png'
+            image.write_bytes(b'image')
+            raw = LongFormVideoParams(video_subject='Teste', structured_script=example_script(),
+                                      image_provider='sd').model_dump(mode='json')
+            raw.pop('visual_mode')
+            raw.pop('stock_provider')
+            record = {'id': 'legacy-production', 'params': raw}
+            manager = CheckpointManager('legacy-production', str(folder))
+            manager.save_checkpoint(CheckpointState(
+                task_id='legacy-production', current_phase='images', completed_scenes=[0],
+                generated_files={'fingerprint': 'old-ai-fingerprint', 'scenes': {
+                    '0': {'index': 0, 'image': str(image)}, '1': {'index': 1},
+                }}, timestamp=1,
+            ))
+
+            migrated = studio._migrate_legacy_visual_source(record, folder)
+            expected = LongFormVideoParams.model_validate(migrated['params'])
+            checkpoint = manager.load_checkpoint()
+
+            self.assertEqual(migrated['params']['visual_mode'], 'stock')
+            self.assertEqual(migrated['params']['stock_provider'], 'pexels')
+            self.assertEqual(checkpoint.current_phase, 'images')
+            self.assertEqual(checkpoint.completed_scenes, [0])
+            self.assertEqual(checkpoint.generated_files['fingerprint'],
+                             hashlib.sha256(expected.model_dump_json().encode()).hexdigest())
+
     def test_dalle_image_service_is_explicitly_blocked(self):
         from app.services.image_generation import ImageGenerationService
 

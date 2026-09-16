@@ -68,12 +68,19 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
                 save('audio', 5 + int(30 * (number + 1) / len(script.scenes)))
         if stop_at == 'audio':
             return {'audio_chunks': [entry['audio'] for entry in entries.values()]}
-        visual_mode = getattr(params, 'visual_mode', 'ai')
+        # Pexels is the Studio default.  The fallback matters for records
+        # serialized before ``visual_mode`` was added to the production JSON.
+        visual_mode = getattr(params, 'visual_mode', 'stock')
         stock_sources = data.setdefault('stock_sources', [])
         for number, scene in enumerate(script.scenes):
             entry = entries[str(scene.index)]
             use_stock = visual_mode == 'stock' or (visual_mode == 'hybrid' and scene.index % 3 != 2)
-            if use_stock and not valid_stock_video(entry.get('stock_video')):
+            # A legacy production can already contain valid AI images.  Keep
+            # those paid assets and only obtain Pexels footage for the scenes
+            # that were not completed, instead of invoking its old image
+            # provider again on resume.
+            if (use_stock and not valid_stock_video(entry.get('stock_video'))
+                    and not valid_image(entry.get('image'))):
                 data.pop('video', None)
                 data.pop('base_video', None)
                 save('images', 35 + int(20 * number / len(script.scenes)))
