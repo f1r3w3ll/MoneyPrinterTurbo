@@ -61,6 +61,11 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
   WoopSocial é removida automaticamente para liberar a cota do plano. Isso
   não remove o MP4 local nem o vídeo publicado no YouTube. Não há editor de
   timeline ou música de fundo nesta tela.
+- Com a fonte visual **Clipes gratuitos**, as cenas usam a biblioteca escolhida
+  e a thumbnail é criada localmente a partir de um frame do primeiro clipe,
+  com o texto configurado. Esse modo não chama OpenAI/DALL-E para imagens ou
+  thumbnail. O modo híbrido continua usando IA nas cenas previstas e na
+  thumbnail, conforme o provedor selecionado.
 - Depois de escolher o projeto WoopSocial, a lista passa a mostrar apenas seus
   canais do YouTube. O botão repete o nome do canal de destino para revisão
   antes do envio.

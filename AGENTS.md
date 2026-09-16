@@ -691,3 +691,15 @@ O gerador original foi preservado.
   logos ou texto legível. Não repete o prompt original. Se a alternativa
   também for recusada, a produção exibe instrução para revisar o prompt visual
   da cena ou usar clipes gratuitos/Stable Diffusion e então retomar.
+
+## Thumbnail sem custo no modo Pexels — 16/09/2026
+
+- O modo `stock` já usava Pexels/Pixabay/Coverr nas cenas, mas a thumbnail
+  final ainda chamava o provedor de imagem padrão e podia consumir créditos da
+  OpenAI. Isso explicava `credit_balance_exhausted` mesmo quando Pexels havia
+  sido selecionado.
+- No modo `stock`, a thumbnail agora extrai um frame do primeiro clipe baixado,
+  aplica o tratamento e texto localmente e não inicializa o cliente de imagem
+  por IA. Ao retomar uma produção Pexels que falhou na thumbnail, os clipes e
+  a composição existentes são reutilizados; a etapa final não precisa de saldo
+  OpenAI. O modo `hybrid` mantém chamadas de IA por definição.

@@ -119,7 +119,11 @@ def run(task_id, params, folder, report=None, stop_at='complete'):
         data['duration_seconds'] = final_expected
         save('thumbnail', 92)
         if stop_at != 'video' and not valid_image(data.get('thumbnail')):
-            data['thumbnail'] = make_thumbnail(script, params, folder)
+            first_stock_video = next((entry.get('stock_video') for entry in ordered if entry.get('stock_video')), None)
+            if first_stock_video:
+                data['thumbnail'] = make_thumbnail(script, params, folder, stock_video=first_stock_video)
+            else:
+                data['thumbnail'] = make_thumbnail(script, params, folder)
         result = dict(video=data['video'], thumbnail=data.get('thumbnail'), script=str(script_file),
                       subtitles=subtitles, duration_seconds=data['duration_seconds'], stock_sources=stock_sources)
         save('complete', 100)

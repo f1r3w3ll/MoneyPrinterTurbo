@@ -12,6 +12,7 @@ from typing import Optional
 
 from loguru import logger
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from moviepy import VideoFileClip
 
 from app.services.image_generation import ImageGenerationService
 
@@ -25,7 +26,8 @@ class ThumbnailService:
 
     def __init__(self):
         """Initialize thumbnail service"""
-        self.image_service = ImageGenerationService()
+        self.image_service = None
+        self.image_provider = None
 
     def generate_hybrid_thumbnail(
         self,
@@ -59,28 +61,14 @@ class ThumbnailService:
         # Ensure output directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        # Set provider if specified
+        # Defer client creation so stock thumbnails never initialize an AI image client.
         if provider:
-            self.image_service.provider = provider
+            self.image_provider = provider
 
         # 1. Generate AI image
         temp_image_path = self._generate_base_image(ai_image_prompt, output_path)
-
-        # 2. Load and process image
-        img = Image.open(temp_image_path)
-        img = img.convert("RGB")  # Ensure RGB mode
-
-        # 3. Resize to YouTube thumbnail size
-        img = img.resize(self.YOUTUBE_THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
-
-        # 4. Apply color grading
-        img = self._apply_color_grading(img, style)
-
-        # 5. Add text overlay
-        img = self._add_text_overlay(img, video_title, style)
-
-        # 6. Save optimized
-        self._save_optimized(img, output_path)
+        with Image.open(temp_image_path) as base_image:
+            self._render_thumbnail(base_image.convert("RGB"), video_title, output_path, style)
 
         # Clean up temp file if different from output
         if temp_image_path != output_path and os.path.exists(temp_image_path):
@@ -88,6 +76,30 @@ class ThumbnailService:
 
         logger.info(f"Thumbnail generated successfully: {output_path}")
         return output_path
+
+    def generate_thumbnail_from_video(
+        self, video_path: str, video_title: str, output_path: str, style: str = "dramatic",
+    ) -> str:
+        """Create a thumbnail from a stock clip frame without using an image API."""
+        try:
+            with VideoFileClip(str(video_path)) as clip:
+                if not clip.duration or clip.duration <= 0:
+                    raise ValueError('O clipe não possui duração válida para thumbnail.')
+                frame_at = min(max(.1, clip.duration * .35), max(.1, clip.duration - .05))
+                frame = clip.get_frame(frame_at)
+        except Exception as exc:
+            raise ValueError('Não foi possível extrair um frame do clipe para a thumbnail.') from exc
+        self._render_thumbnail(Image.fromarray(frame).convert('RGB'), video_title, output_path, style)
+        logger.info(f"Thumbnail generated from stock clip: {output_path}")
+        return output_path
+
+    def _render_thumbnail(self, image: Image.Image, video_title: str, output_path: str, style: str):
+        """Apply the common YouTube thumbnail treatment to a base image."""
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        image = image.resize(self.YOUTUBE_THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+        image = self._apply_color_grading(image, style)
+        image = self._add_text_overlay(image, video_title, style)
+        self._save_optimized(image, output_path)
 
     def _generate_base_image(
         self, prompt: str, output_path: str
@@ -111,6 +123,8 @@ class ThumbnailService:
         output_dir = os.path.dirname(output_path)
         scene_id = "thumbnail"
 
+        if self.image_service is None:
+            self.image_service = ImageGenerationService(self.image_provider)
         return self.image_service.generate_image(
             prompt=enhanced_prompt, scene_id=scene_id, output_dir=output_dir
         )

@@ -452,14 +452,20 @@ def append_cta(video_path, params, folder, resolution=None, fps=24):
     return str(target)
 
 
-def make_thumbnail(script, params, folder):
+def make_thumbnail(script, params, folder, stock_video=None):
     from app.services.thumbnail import ThumbnailService
-    result = ThumbnailService().generate_hybrid_thumbnail(
-        video_title=params.thumbnail_text or script.title,
-        ai_image_prompt=script.scenes[0].image_prompt,
-        output_path=str(Path(folder) / 'thumbnail.jpg'),
-        style=params.thumbnail_style if params.thumbnail_style in ('dramatic', 'clean', 'colorful') else 'dramatic',
-        provider=params.image_provider)
+    service = ThumbnailService()
+    title = params.thumbnail_text or script.title
+    target = str(Path(folder) / 'thumbnail.jpg')
+    style = params.thumbnail_style if params.thumbnail_style in ('dramatic', 'clean', 'colorful') else 'dramatic'
+    if getattr(params, 'visual_mode', 'ai') == 'stock':
+        if not stock_video:
+            raise RuntimeError('Não há clipe disponível para criar a thumbnail desta produção Pexels.')
+        result = service.generate_thumbnail_from_video(stock_video, title, target, style)
+    else:
+        result = service.generate_hybrid_thumbnail(
+            video_title=title, ai_image_prompt=script.scenes[0].image_prompt,
+            output_path=target, style=style, provider=params.image_provider)
     if not valid_image(result):
         raise RuntimeError('A thumbnail não foi gerada corretamente.')
     return result

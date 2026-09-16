@@ -135,6 +135,27 @@ class LongformTests(unittest.TestCase):
             self.assertEqual(len(result['stock_sources']), 5)
             self.assertEqual(result['stock_sources'][0]['provider'], 'pexels')
 
+    def test_stock_thumbnail_uses_a_clip_frame_without_calling_ai_images(self):
+        from app.services.longform_media import make_thumbnail
+        from app.services.thumbnail import ThumbnailService
+
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            folder = Path(tmp)
+            target = folder / 'thumbnail.jpg'
+            target.write_bytes(b'image')
+            params = LongFormVideoParams(video_subject='Teste', structured_script=example_script(),
+                                         visual_mode='stock', thumbnail_text='CLIP FRAME')
+            with patch.object(ThumbnailService, 'generate_thumbnail_from_video', return_value=str(target)) as stock_thumbnail, \
+                 patch.object(ThumbnailService, 'generate_hybrid_thumbnail') as ai_thumbnail, \
+                 patch('app.services.thumbnail.ImageGenerationService') as image_service, \
+                 patch.object(__import__('app.services.longform_media', fromlist=['valid_image']), 'valid_image', return_value=True):
+                result = make_thumbnail(params.structured_script, params, folder, stock_video='first-clip.mp4')
+
+            self.assertEqual(result, str(target))
+            stock_thumbnail.assert_called_once()
+            ai_thumbnail.assert_not_called()
+            image_service.assert_not_called()
+
     def test_duplicate_scene_indices_rejected(self):
         script = example_script()
         script.scenes[1].index = 0
