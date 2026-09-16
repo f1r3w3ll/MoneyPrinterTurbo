@@ -61,6 +61,11 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
   WoopSocial é removida automaticamente para liberar a cota do plano. Isso
   não remove o MP4 local nem o vídeo publicado no YouTube. Não há editor de
   timeline ou música de fundo nesta tela.
+- Em **Configurações**, **Aceleração de exportação do vídeo** permite usar
+  `h264_nvenc` em GPUs NVIDIA. NVENC acelera a codificação dos blocos e da tela
+  final; pan/zoom, transições e legendas ainda são calculados pela CPU. Se o
+  FFmpeg, driver ou GPU não aceitarem NVENC, o Estúdio repete automaticamente a
+  etapa com `libx264`, sem perder a produção.
 - As cenas usam Pexels e a thumbnail é criada localmente a partir de um frame
   do primeiro clipe, com o texto configurado. O Estúdio bloqueia DALL·E para
   evitar cobranças acidentais de créditos OpenAI.

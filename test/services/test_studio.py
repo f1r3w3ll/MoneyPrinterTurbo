@@ -973,6 +973,21 @@ class StudioTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 settings.save_settings({'llm': {'openai': {'api_key': 'sk-...xyz'}}})
 
+    def test_configuration_persists_nvenc_selection(self):
+        from app.services import studio_settings as settings
+        from app.config import config
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, \
+             patch.object(config, 'config_file', str(Path(tmp) / 'config.toml')), \
+             patch.object(config, '_cfg', {}), patch.object(config, 'llm', {}), \
+             patch.object(config, 'image_generation', {}), patch.object(config, 'premium_tts', {}), \
+             patch.object(config, 'app', {}):
+            settings.save_settings({'encoding': {'video_codec': 'h264_nvenc'}})
+
+            self.assertEqual(config.app['video_codec'], 'h264_nvenc')
+            self.assertEqual(settings.get_settings()['encoding']['video_codec'], 'h264_nvenc')
+            with self.assertRaisesRegex(ValueError, 'encoder'):
+                settings.save_settings({'encoding': {'video_codec': 'unknown'}})
+
     def test_worker_failure_redacts_credentials(self):
         from app.services import studio
         from app.config import config

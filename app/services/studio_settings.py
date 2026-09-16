@@ -8,6 +8,7 @@ from app.config import config
 
 LOCK = threading.RLock()
 PROVIDERS = ('openai', 'claude', 'gemini', 'deepseek', 'kimi', 'qwen')
+VIDEO_CODECS = ('libx264', 'h264_nvenc')
 
 
 def get_settings():
@@ -32,7 +33,9 @@ def get_settings():
             pixabay_configured=bool(config.app.get('pixabay_api_keys')),
             coverr_configured=bool(config.app.get('coverr_api_keys')),
         )
-        return dict(llm=llm, image_generation=image, premium_tts=tts, woopsocial=woop, stock=stock)
+        encoding = dict(video_codec=str(config.app.get('video_codec', 'libx264') or 'libx264'))
+        return dict(llm=llm, image_generation=image, premium_tts=tts, woopsocial=woop, stock=stock,
+                    encoding=encoding)
 
 
 def _merge(current, values, allowed):
@@ -65,6 +68,12 @@ def save_settings(values):
         if image.get('default_provider', 'sd') != 'sd':
             raise ValueError('Provedor de imagens não implementado.')
         app = _merge(config.app, values.get('woopsocial', {}), ('woopsocial_api_key',))
+        encoding_values = values.get('encoding', {})
+        if 'video_codec' in encoding_values:
+            codec = str(encoding_values['video_codec'] or '').strip()
+            if codec not in VIDEO_CODECS:
+                raise ValueError('Selecione um encoder de vídeo válido.')
+            app['video_codec'] = codec
         stock_values = values.get('stock', {})
         for provider in ('pexels', 'pixabay', 'coverr'):
             key_name = f'{provider}_api_key'

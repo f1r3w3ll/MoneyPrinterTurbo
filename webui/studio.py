@@ -301,6 +301,17 @@ def _settings(service):
             coverr_key = st.text_input('Chave Coverr para clipes gratuitos', type='password')
             eleven_key = st.text_input('Chave ElevenLabs', type='password')
             woop_key = st.text_input('Chave WoopSocial para publicação', type='password')
+            codec_options = {
+                'CPU · libx264 (mais compatível)': 'libx264',
+                'NVIDIA GPU · NVENC (mais rápido)': 'h264_nvenc',
+            }
+            saved_codec = values.get('encoding', {}).get('video_codec', 'libx264')
+            codec_labels = list(codec_options)
+            codec_index = list(codec_options.values()).index(saved_codec) if saved_codec in codec_options.values() else 0
+            video_codec_label = st.selectbox(
+                'Aceleração de exportação do vídeo', codec_labels, index=codec_index,
+                help='NVENC usa a GPU NVIDIA para codificar os blocos do vídeo. Se o driver ou FFmpeg não suportarem, o Estúdio volta automaticamente para CPU.',
+            )
             saved_voice = values.get('premium_tts', {}).get('elevenlabs_voice_id', '')
             preset_values = [voice for _, voice in PREMIUM_VOICE_OPTIONS]
             default_voice_index = preset_values.index('elevenlabs:' + saved_voice) if 'elevenlabs:' + saved_voice in preset_values else 0
@@ -316,7 +327,7 @@ def _settings(service):
                     config['model'] = model.strip()
                 if base_url.strip():
                     config['base_url'] = base_url.strip()
-                service.save_settings({'llm': {provider: config}, 'image_generation': {'default_provider': 'sd', 'sd_api_key': sd_key}, 'stock': {'pexels_api_key': pexels_key, 'pixabay_api_key': pixabay_key, 'coverr_api_key': coverr_key}, 'premium_tts': {'elevenlabs_api_key': eleven_key, 'elevenlabs_voice_id': eleven_voice}, 'woopsocial': {'woopsocial_api_key': woop_key}})
+                service.save_settings({'llm': {provider: config}, 'image_generation': {'default_provider': 'sd', 'sd_api_key': sd_key}, 'stock': {'pexels_api_key': pexels_key, 'pixabay_api_key': pixabay_key, 'coverr_api_key': coverr_key}, 'premium_tts': {'elevenlabs_api_key': eleven_key, 'elevenlabs_voice_id': eleven_voice}, 'woopsocial': {'woopsocial_api_key': woop_key}, 'encoding': {'video_codec': codec_options[video_codec_label]}})
                 st.success('Configurações salvas.')
     return service.get_settings()
 

@@ -335,7 +335,7 @@ def compose(entries, params, folder, progress=None, output_name='final.mp4', res
             joined = concatenate_videoclips(clips, method='chain')
             resources.append(joined)
             output = folder / f'render-{index:03}.mp4'
-            video._write_videofile_with_codec_fallback(joined, str(output), codec='libx264',
+            video._write_videofile_with_codec_fallback(joined, str(output), codec=video._get_configured_video_codec(),
                 fps=fps, audio_codec='aac', audio_bitrate='192k', threads=params.n_threads or 2,
                 logger=None, temp_audiofile=str(folder / f'render-{index:03}.m4a'))
             outputs.append(str(output))
@@ -462,7 +462,7 @@ def append_cta(video_path, params, folder, resolution=None, fps=24):
         joined = concatenate_videoclips([base, card], method='compose')
         resources.append(joined)
         from app.services import video
-        video._write_videofile_with_codec_fallback(joined, str(target), codec='libx264', fps=fps,
+        video._write_videofile_with_codec_fallback(joined, str(target), codec=video._get_configured_video_codec(), fps=fps,
             audio_codec='aac', audio_bitrate='192k', threads=params.n_threads or 2, logger=None,
             temp_audiofile=str(folder / f'{target.stem}.m4a'))
         if not valid_video(target):

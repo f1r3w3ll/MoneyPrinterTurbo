@@ -740,3 +740,9 @@ O gerador original foi preservado.
   anterior do cliente cuja função não aceitava `project_id`. O projeto escolhido
   ainda é enviado no upload e na criação do post; a lista permite escolher
   explicitamente qualquer canal YouTube conectado à conta.
+
+## Aceleração NVIDIA NVENC — 16/09/2026
+
+- A máquina local possui NVIDIA GeForce RTX 4060 Laptop GPU (driver 616.56). O FFmpeg distribuído pelo projeto declara `h264_nvenc` e uma codificação real em 1280×720 foi concluída com sucesso.
+- O Estúdio ganhou a configuração **Aceleração de exportação do vídeo**. NVENC é persistido como `app.video_codec = "h264_nvenc"` para novas produções e é usado nos blocos de composição e na endcard CTA. A composição dos frames continua dependente de CPU.
+- Quando o encoder, a GPU ou o driver falhar, o serviço reexecuta aquela etapa com `libx264` e desativa NVENC apenas durante o processo corrente. Assim uma produção não falha por indisponibilidade de hardware.
