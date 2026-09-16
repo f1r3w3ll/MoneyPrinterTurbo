@@ -64,6 +64,16 @@ porta configurada por `listen_port` no nível raiz do TOML (fallback 8080).
 - Depois de escolher o projeto WoopSocial, a lista passa a mostrar apenas seus
   canais do YouTube. O botão repete o nome do canal de destino para revisão
   antes do envio.
+- Produzir e publicar são etapas independentes. Um vídeo concluído permanece
+  em **Produções** com MP4, thumbnail, roteiro e metadados até que seja
+  excluído ou arquivado. A aba **Publicação** lista esses vídeos concluídos
+  para envio posterior; ela não inicia nenhuma publicação ao término da
+  renderização. Para liberar em outro horário, escolha **Agendado** e informe
+  a data e a hora. Nesse caso, o upload à WoopSocial acontece no momento do
+  agendamento e o YouTube recebe a instrução de publicação para o horário
+  escolhido. Use **Arquivar como publicado** somente depois de confirmar a
+  entrega: o arquivamento move os artefatos para `PUBLICADOS` e os retira da
+  lista disponível para publicação no Estúdio.
 - O CTA preserva as dimensões do vídeo, inclusive em retrato, e sua duração
   entra no total informado. A composição base é preservada em arquivo separado:
   se o CTA falhar, a retomada reutiliza essa base; se a thumbnail falhar, reutiliza

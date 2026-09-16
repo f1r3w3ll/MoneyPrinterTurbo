@@ -667,3 +667,16 @@ O gerador original foi preservado.
   antes do envio. Isso elimina a ambiguidade da antiga lista global de contas.
   Registros já arquivados não preservaram `publication.json`; manter esse
   arquivo no arquivamento é uma melhoria futura de auditoria.
+
+## Fila de produção e publicação posterior — 15/09/2026
+
+- A fila local de renderização aceita até 20 produções pendentes e executa uma
+  por processo. Ao terminar, cada vídeo continua em `Produções`, com MP4,
+  thumbnail, roteiro e metadados, sem iniciar envio automático ao YouTube.
+- A aba `Publicação` lista qualquer produção concluída que ainda mantenha seu
+  MP4 no Estúdio. Ela permite publicar depois, em privado, não listado, público
+  ou agendado. No agendamento, o MP4 é enviado à WoopSocial naquele momento e
+  a plataforma agenda a liberação no YouTube para a data/hora selecionada.
+- `Arquivar como publicado` não é uma etapa da produção: após confirmação,
+  move os artefatos para `PUBLICADOS` e os remove da lista de publicação do
+  Estúdio. Usar somente quando a entrega já estiver confirmada.
