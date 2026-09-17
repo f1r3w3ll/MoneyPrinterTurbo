@@ -757,3 +757,8 @@ O gerador original foi preservado.
 - Algumas produções criadas antes de `visual_mode` ser persistido ficaram sem esse campo e, ao retomar, herdavam o comportamento histórico de Stable Diffusion/Replicate. A cadência do Replicate não resolve esse caso, pois ainda consome previsões.
 - Ao retomar uma produção sem `visual_mode`, o Estúdio a migra uma vez para `stock` com `stock_provider="pexels"`, atualiza o fingerprint do checkpoint e invalida somente composição, legendas, thumbnail e vídeo final. Áudio e imagens válidas já gerados são preservados; Pexels é chamado somente nas cenas que ainda não têm visual.
 - A produção local `Project Azorian: The Billion-Dollar Cold War Submarine Heist` foi migrada com 41 imagens e todo o áudio preservados. A aplicação local foi reiniciada com uma única instância Streamlit na porta 8501; duas instâncias concorrentes não devem voltar a ser iniciadas.
+
+## Validação de clipes Pexels recém-baixados — 16/09/2026
+
+- Na retomada de Project Azorian, a composição recusou a cena 42 apesar de o MP4 Pexels estar presente e validável logo depois. A causa foi uma indisponibilidade transitória do leitor FFmpeg/Windows imediatamente após o download, não ausência de mídia nem uma chamada ao Replicate.
+- `valid_stock_video` tenta abrir o clipe até três vezes, com pequena espera apenas para erros de acesso ao arquivo. Demais erros continuam falhando imediatamente. A produção pode ser retomada e reutilizará os áudios, imagens e clipes já armazenados.
