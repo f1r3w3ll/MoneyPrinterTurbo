@@ -312,6 +312,22 @@ class LongformTests(unittest.TestCase):
                 self.assertAlmostEqual(clip.duration, 1., delta=.15)
                 self.assertEqual(clip.size, [160, 90])
 
+    def test_stock_clip_validation_retries_a_transient_windows_reader_lock(self):
+        from app.services import longform_media as media
+        from unittest.mock import MagicMock
+
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            clip_path = Path(tmp) / 'clip.mp4'
+            clip_path.write_bytes(b'video')
+            readable = MagicMock()
+            readable.__enter__.return_value.duration = 2.
+            with patch.object(media, 'VideoFileClip', side_effect=[OSError('locked'), readable]) as reader, \
+                 patch.object(media.time, 'sleep') as wait:
+                self.assertTrue(media.valid_stock_video(clip_path))
+
+            self.assertEqual(reader.call_count, 2)
+            wait.assert_called_once()
+
     def test_text_cta_appends_a_logo_endcard(self):
         from app.services.longform_media import append_cta, valid_video
         from PIL import Image

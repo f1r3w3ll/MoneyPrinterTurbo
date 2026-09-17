@@ -1,6 +1,7 @@
 """Media operations for the studio; each scene owns its measured audio timeline."""
 import math
 import os
+import time
 from pathlib import Path
 
 import numpy as np
@@ -52,11 +53,20 @@ def valid_stock_video(filename):
     """Stock clips do not need an audio track because narration is added later."""
     if not nonempty(filename):
         return False
-    try:
-        with VideoFileClip(str(filename)) as clip:
-            return math.isfinite(clip.duration) and clip.duration > 0
-    except Exception:
-        return False
+    # On Windows a freshly downloaded MP4 can remain briefly unavailable to
+    # FFmpeg even after the downloader has closed it.  Do not mark a healthy
+    # Pexels asset invalid during that short hand-off to the compositor.
+    for attempt in range(3):
+        try:
+            with VideoFileClip(str(filename)) as clip:
+                return math.isfinite(clip.duration) and clip.duration > 0
+        except (OSError, PermissionError):
+            if attempt == 2:
+                return False
+            time.sleep(.2)
+        except Exception:
+            return False
+    return False
 
 
 def fallback_cues(text, duration):
